@@ -1,10 +1,10 @@
 {
-  "projectId": "useful-glider-lsjh2",
-  "appId": "1:124627129068:web:f72e4d72d8f6815e664bc9",
-  "apiKey": "AIzaSyAqjWCqe-6JrceY0Kg-mwuGArjillBywNY",
-  "authDomain": "useful-glider-lsjh2.firebaseapp.com",
+  "projectId": "fintrack-d1402",
+  "appId": "1:642050444694:web:93caad5407973eed4061b7",
+  "apiKey": "AIzaSyAcWD4NGndZ11tKTTyGLU1aLTgvn88mNz0",
+  "authDomain": "fintrack-d1402.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-35c7de63-146a-4593-b10f-384927f61265",
-  "storageBucket": "useful-glider-lsjh2.firebasestorage.app",
-  "messagingSenderId": "124627129068",
+  "storageBucket": "fintrack-d1402.firebasestorage.app",
+  "messagingSenderId": "642050444694",
   "measurementId": ""
 }

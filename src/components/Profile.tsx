@@ -8,7 +8,7 @@ import { db } from '../db';
 import { ConfirmModal } from './ui/ConfirmModal';
 
 export function Profile() {
-  const { currentUser, login, signup, logout, updateProfile, deleteAccount, authError, clearAuthError, loginWithGoogle } = useAuth();
+  const { currentUser, login, signup, logout, updateProfile, deleteAccount, authError, clearAuthError, loginWithGoogle, loginAsGuest } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   
   // Form states
@@ -554,7 +554,16 @@ export function Profile() {
             <path fill="#FBBC05" d="M5.1 14.41c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29L1.24 6.83C.45 8.39 0 10.14 0 12s.45 3.61 1.24 5.17l3.86-2.76z" />
             <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.68-2.85c-1.02.68-2.33 1.1-4.28 1.1-3.21 0-5.97-2.56-6.9-5.68l-3.86 2.76C3.2 20.27 7.24 23 12 23z" />
           </svg>
-          Google
+          Google দিয়ে লগইন করুন
+        </button>
+
+        <button 
+          type="button"
+          onClick={loginAsGuest}
+          className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold hover:shadow-violet-500/35 transition-all shadow-md flex items-center justify-center gap-2"
+        >
+          <Code size={18} />
+          বিনা সাইন-আপে ডেমো (Guest) অ্যাকাউন্ট ব্যবহার করুন
         </button>
 
         {/* Iframe Login Helper Notice */}

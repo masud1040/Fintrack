@@ -20,6 +20,7 @@ interface AuthContextType {
   currentUser: User | null;
   login: (email: string, pass: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   signup: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (name: string, avatar: string, phoneNumber?: string, companyName?: string) => Promise<void>;
@@ -228,16 +229,77 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const loginAsGuest = async () => {
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      const guestId = 'guest_user';
+      const localUser: User = {
+        id: guestId,
+        name: 'Guest User (ডেমো)',
+        email: 'guest@example.com',
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=Guest&backgroundColor=b6e3f4`,
+        phoneNumber: '',
+        companyName: ''
+      };
+
+      // Seed default categories
+      const existingCats = await db.categories.where('userId').equals(guestId).toArray();
+      if (existingCats.length === 0) {
+        await db.categories.bulkAdd([
+          { name: 'خوراک (Food)', type: 'expense', color: '#EF4444', userId: guestId as any },
+          { name: 'যাতায়াত (Transport)', type: 'expense', color: '#F59E0B', userId: guestId as any },
+          { name: 'কেনাকাটা (Shopping)', type: 'expense', color: '#3B82F6', userId: guestId as any },
+          { name: 'বেতন (Salary)', type: 'income', color: '#10B981', userId: guestId as any },
+        ]);
+      }
+
+      const existingAccs = await db.accounts.where('userId').equals(guestId).toArray();
+      if (existingAccs.length === 0) {
+        await db.accounts.add({
+          name: 'নগদ টাকা (Cash)',
+          type: 'cash',
+          initialBalance: 0,
+          currentBalance: 0,
+          userId: guestId as any,
+        });
+      }
+
+      setCurrentUser(localUser);
+      localStorage.setItem('currentUserId', guestId);
+      localStorage.setItem('fintrack_local_session', JSON.stringify(localUser));
+    } catch (error: any) {
+      console.error('Guest login error:', error);
+      setAuthError('ডেমো লগইন এ সমস্যা হয়েছে।');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     localStorage.removeItem('fintrack_local_session');
     localStorage.removeItem('currentUserId');
-    await signOut(auth);
+    await signOut(auth).catch(() => {});
     setCurrentUser(null);
   };
 
   const updateProfile = async (name: string, avatar: string, phoneNumber?: string, companyName?: string) => {
     const firebaseUser = auth.currentUser;
-    if (!firebaseUser) return;
+    if (!firebaseUser) {
+      if (currentUser && currentUser.id === 'guest_user') {
+        const updatedUser: User = {
+          id: 'guest_user',
+          name,
+          email: currentUser.email,
+          avatar,
+          phoneNumber: phoneNumber || '',
+          companyName: companyName || ''
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('fintrack_local_session', JSON.stringify(updatedUser));
+      }
+      return;
+    }
 
     // Update Auth profile.
     await updateFirebaseProfile(firebaseUser, {
@@ -315,6 +377,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       currentUser, 
       login, 
       loginWithGoogle,
+      loginAsGuest,
       signup, 
       logout, 
       updateProfile, 
