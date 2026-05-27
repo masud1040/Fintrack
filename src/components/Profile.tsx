@@ -561,20 +561,20 @@ export function Profile() {
         <div className="mt-6 p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 rounded-2xl text-xs space-y-2 text-slate-650 dark:text-slate-300 shadow-sm leading-relaxed text-left">
           <p className="font-extrabold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
             <AlertCircle size={14} className="shrink-0 text-indigo-500" />
-            গুগল লগইন কাজ করছে না (Iframe Rules)?
+            লগইন কাজ করছে না (Iframe & Provider Setup)?
           </p>
           <p>
-            গুগল এআই স্টুডিওর প্রিভিউ উন্ডোটি একটি সুরক্ষিত <strong>আইফ্রেম (Iframe)</strong> এর ভেতরে রান করার কারণে ব্রাউজার সরাসরি গুগল পপআপ সেশন ব্লক করে দিচ্ছে।
+            প্রজেক্টের সিকিউরিটি পলিসি ও ব্রাউজার সিকিউরিটির জন্য নিচের নিয়মটি অনুসরণ করুন:
           </p>
-          <p className="font-semibold text-slate-700 dark:text-slate-200">
-            সমস্যার সমাধান করতে নিচের যেকোনো একটি উপায় বেছে নিন:
-          </p>
-          <ul className="list-disc pl-4 space-y-1.5">
+          <ul className="list-decimal pl-4 space-y-1.5">
             <li>
-              <strong>সহজ সমাধান (ইমেইল):</strong> "Sign up" এ ক্লিক করে আপনার নাম, ইমেইল ও একটি পাসওয়ার্ড দিয়ে অ্যাকাউন্ট তৈরি করে প্রবেশ করুন। এটি ব্রাউজারের যেকোনো উইন্ডোতেই শতভাগ সফলভাবে কাজ করবে।
+              <strong>১. গুগল সাইন-ইন ব্যবহার করুন:</strong> এই ডেমো প্রোজেক্টে সিকিউরিটি কারণে ইমেইল/পাসওয়ার্ড দিয়ে নতুন অ্যাকাউন্ট সাইন-আপ করার প্রোভাইডার বন্ধ (Disabled) রয়েছে। কিন্তু <strong>Google Login সম্পূর্ণ চালু (Enabled) আছে</strong>!
             </li>
             <li>
-              <strong>ডিভাইস ট্যাব সমাধান (গুগল):</strong> প্রিভিউ স্ক্রিনের উপরে বা নিচে শেয়ার আইকনের কাছে থাকা <strong>"Open in new tab"</strong> চিহ্নে ক্লিক করে সম্পূর্ণ নতুন ব্রাউজার ট্যাবে ওপেন করে গুগল লগইন করুন।
+              <strong>২. নতুন ট্যাবে ওপেন করুন:</strong> গুগল এআই স্টুডিওর প্রিভিউ উন্ডোটি একটি ইন-অ্যাপ ফ্রেম (Iframe) এর মাঝে থাকার কারণে সরাসরি গুগল লগইন বাটনে চাপ দিলে ব্রাউজার পপআপ ব্লক করে দেয়।
+            </li>
+            <li className="font-bold text-slate-800 dark:text-white">
+              ৩. সমাধান: মোবাইল বা কম্পিউটারের প্রিভিউ স্ক্রিনের উপরে বা নিচে থাকা "Open in new tab" (নতুন ট্যাব আইকন) বাটনে ক্লিক করে প্রজেক্টটি সরাসরি ব্রাউজারে ওপেন করুন এবং Google দিয়ে ইনস্ট্যান্ট লগইন সম্পন্ন করুন।
             </li>
           </ul>
         </div>

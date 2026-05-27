@@ -140,6 +140,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         msg = 'Invalid credentials';
       } else if (error.code === 'auth/invalid-email') {
         msg = 'Invalid email address';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        msg = 'ইমেইল/পাসওয়ার্ড সাইন-ইন বন্ধ রয়েছে। দয়া করে নিচের "Google" বাটনে ক্লিক করে লগইন করুন।';
       }
       setAuthError(msg);
       throw error;
@@ -154,7 +156,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.warn('Google Popup Auth Error: ', error);
-      let errMsg = 'গুগল লগইন এর পপআপ ব্রাউজার দ্বারা ব্লক করা হয়েছে। দয়া করে স্ক্রিনের উপরে বা নিচে থাকা "Open in new tab" বাটনে ক্লিক করে নতুন ট্যাবে ট্রাই করুন অথবা সহজ ইমেইল দিয়ে অ্যাকাউন্ট খুলে লগইন করুন।';
+      let errMsg = 'গুগল লগইন এর পপআপ ব্রাউজার দ্বারা ব্লক করা হয়েছে। দয়া করে স্ক্রিনের উপরে বা নিচে থাকা "Open in new tab" বাটনে ক্লিক করে নতুন ট্যাবে ট্রাই করুন।';
       if (error.code === 'auth/popup-closed-by-user') {
         errMsg = 'লগইন পপআপ বন্ধ করা হয়েছে। সফলভাবে লগইন করতে পপআপ উইন্ডোটি সম্পন্ন করুন অথবা নতুন ট্যাবে গিয়ে ট্রাই করুন।';
       }
@@ -218,6 +220,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         msg = 'Email already exists';
       } else if (error.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        msg = 'ইমেইল অ্যাকাউন্ট তৈরি করা আপাতত সচল নেই। গুগল (Google) সাইন-ইন সচল আছে, অনুগ্রহ করে নিচের Google বাটনে ক্লিক করে লগইন করুন।';
       }
       setAuthError(msg);
       throw error;

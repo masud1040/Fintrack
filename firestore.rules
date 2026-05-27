@@ -23,13 +23,8 @@ service cloud.firestore {
     // --- Entity Validations ---
     function isValidUser(data, userId) {
       return data.keys().hasAll(['name', 'email']) 
-        && data.keys().size() <= 4
         && data.name is string 
-        && data.name.size() > 0 
-        && data.name.size() <= 100
-        && data.email is string
-        && data.email.size() > 0
-        && data.email.size() <= 200;
+        && data.email is string;
     }
 
     function isValidAccount(data) {
