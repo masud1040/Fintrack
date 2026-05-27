@@ -28,7 +28,7 @@ export async function pullDataFromFirestore(userId: string) {
           // Clear previous local cache for this specific user
           await table.where('userId').equals(userId).delete();
           if (items.length > 0) {
-            await table.bulkAdd(items);
+            await table.bulkPut(items);
           }
         } finally {
           sdb._isSyncing = false;

@@ -9,10 +9,12 @@ import {
   deleteUser,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   setPersistence,
   browserLocalPersistence
 } from 'firebase/auth';
-import { auth, db as firestoreDb } from '../lib/firebase';
+import { auth, db as firestoreDb, handleFirestoreError, OperationType } from '../lib/firebase';
 import { doc, getDoc, setDoc, deleteDoc, writeBatch, query, collection, where, getDocs } from 'firebase/firestore';
 import { pullDataFromFirestore } from '../lib/syncManager';
 
@@ -62,13 +64,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.warn('Firebase persistence setting error:', err);
     });
 
+    // Handle redirect results if we signed in via redirect
+    getRedirectResult(auth).catch((error: any) => {
+      console.warn('Firebase Redirect Auth Error:', error);
+      let errMsg = 'গুগল লগইন ব্যর্থ হয়েছে।';
+      if (error.code === 'auth/unauthorized-domain') {
+        errMsg = 'এই ডোমেইনটি (Domain) ফায়ারবেস ডোমেইন তালিকায় অনুমোদিত নয়। দয়া করে ফায়ারবেস কনসোলে Settings -> Authorized Domains-এ এটি যোগ করুন।';
+      }
+      setAuthError(errMsg);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setIsLoading(true);
         try {
           // 1. Check if profile exists in Firestore /user
           const userDocRef = doc(firestoreDb, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
+          let userDoc;
+          try {
+            userDoc = await getDoc(userDocRef);
+          } catch (getErr) {
+            handleFirestoreError(getErr, OperationType.GET, `users/${firebaseUser.uid}`);
+          }
           
           let name = firebaseUser.displayName || 'User';
           let email = firebaseUser.email || '';
@@ -76,7 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           let phoneNumber = '';
           let companyName = '';
           
-          if (userDoc.exists()) {
+          if (userDoc && userDoc.exists()) {
             const data = userDoc.data();
             name = data.name || name;
             email = data.email || email;
@@ -85,7 +102,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             companyName = data.companyName || '';
           } else {
             // First time Google Sign In profile seed
-            await setDoc(userDocRef, { name, email, avatar, phoneNumber, companyName });
+            try {
+              await setDoc(userDocRef, { name, email, avatar, phoneNumber, companyName });
+            } catch (setErr) {
+              handleFirestoreError(setErr, OperationType.CREATE, `users/${firebaseUser.uid}`);
+            }
           }
 
           const localUser: User = {
@@ -153,13 +174,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAuthError(null);
     try {
       const provider = new GoogleAuthProvider();
-      // Try popup authentication
-      await signInWithPopup(auth, provider);
+      // Use redirect directly on mobile web, or in embedded webviews
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (popupErr: any) {
+          console.warn('Popup blocked, trying redirect fallback:', popupErr);
+          if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+            await signInWithRedirect(auth, provider);
+          } else {
+            throw popupErr;
+          }
+        }
+      }
     } catch (error: any) {
-      console.warn('Google Popup Auth Error: ', error);
+      console.warn('Google Auth Error: ', error);
       let errMsg = 'গুগল লগইন এর পপআপ ব্রাউজার দ্বারা ব্লক করা হয়েছে। দয়া করে স্ক্রিনের উপরে বা নিচে থাকা "Open in new tab" বাটনে ক্লিক করে নতুন ট্যাবে ট্রাই করুন।';
       if (error.code === 'auth/popup-closed-by-user') {
-        errMsg = 'লগইন পপআপ বন্ধ করা হয়েছে। সফলভাবে লগইন করতে পপআপ উইন্ডোটি সম্পন্ন করুন অথবা নতুন ট্যাবে গিয়ে ট্রাই করুন।';
+        errMsg = 'লগইন পপআপ বন্ধ করা হয়েছে। পুনরায় চেষ্টা করুন বা নতুন ট্যাবে ট্রাই করুন।';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errMsg = 'এই ডোমেইনটি (Domain) ফায়ারবেসে অনুমোদিত নয়। দয়া করে ফায়ারবেস কনসোলে Authentication -> Settings -> Authorized Domains-এ আপনার ডোমেইনটি যোগ করুন।';
+      } else if (error.message) {
+        errMsg = `Google error: ${error.message}`;
       }
       setAuthError(errMsg);
       throw error;

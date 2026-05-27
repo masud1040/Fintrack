@@ -123,56 +123,61 @@ service cloud.firestore {
     // --- Path Rules ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(request.resource.data, userId);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data, userId);
-      allow delete: if isOwner(userId);
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /accounts/{accountId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidAccount(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidAccount(request.resource.data);
     }
 
     match /categories/{categoryId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidCategory(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidCategory(request.resource.data);
     }
 
     match /transactions/{transactionId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidTransaction(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidTransaction(request.resource.data);
     }
 
     match /recurringTransactions/{recurringId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidRecurringTransaction(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidRecurringTransaction(request.resource.data);
     }
 
     match /debts/{debtId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidDebt(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidDebt(request.resource.data);
     }
 
     match /notes/{noteId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidNote(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidNote(request.resource.data);
     }
 
     match /notifications/{notificationId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidNotification(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidNotification(request.resource.data);
     }
 
     match /bazarLists/{bazarListId} {
-      allow read, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow get, delete: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && isValidBazarList(request.resource.data);
       allow update: if isSignedIn() && (resource == null || !('userId' in resource.data) || resource.data.userId == request.auth.uid) && isValidBazarList(request.resource.data);
     }

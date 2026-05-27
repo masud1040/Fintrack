@@ -65,29 +65,40 @@ export async function safeHtml2Canvas(element: HTMLElement, options?: any) {
 
     return new Proxy(style, {
       get(target, prop) {
+        // 1. Intercept getPropertyValue
         if (prop === 'getPropertyValue') {
           return (propertyName: string) => {
-            const val = target.getPropertyValue(propertyName);
-            return convertOklchToRgb(val);
+            try {
+              const val = target.getPropertyValue(propertyName);
+              return convertOklchToRgb(val);
+            } catch (e) {
+              return '';
+            }
           };
         }
 
-        let val;
+        // 2. Safely resolve standard string keys to prevent "Illegal invocation" context errors
+        if (typeof prop === 'string') {
+          try {
+            const val = target[prop as any];
+            if (typeof val === 'function') {
+              return (val as any).bind(target);
+            }
+            if (typeof val === 'string' && val.includes('oklch')) {
+              return convertOklchToRgb(val);
+            }
+            return val;
+          } catch (e) {
+            return '';
+          }
+        }
+
+        // 3. Keep symbols and other native properties intact
         try {
-          // Access prop as a property of style directly inside a try/catch to maintain native bindings
-          val = target[prop as any];
+          return Reflect.get(target, prop);
         } catch (e) {
-          val = Reflect.get(target, prop);
+          return undefined;
         }
-
-        if (typeof val === 'function') {
-          return val.bind(target);
-        }
-
-        if (typeof val === 'string') {
-          return convertOklchToRgb(val);
-        }
-        return val;
       }
     }) as any;
   };
@@ -124,7 +135,9 @@ export async function generateHtmlPdf(htmlContent: string, options: HtmlToPdfOpt
 
   try {
     // Ensure all custom fonts (Hind Siliguri, Tinos, Inter) are fully loaded
-    await document.fonts.ready;
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
     // Small timeout to allow browser layout & font mapping to complete
     await new Promise((resolve) => setTimeout(resolve, 350));
 

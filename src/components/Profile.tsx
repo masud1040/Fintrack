@@ -6,6 +6,8 @@ import { Analytics } from './Analytics';
 import { generatePDFReport, generateMonthlyPDFReport } from '../lib/pdfExport';
 import { db } from '../db';
 import { ConfirmModal } from './ui/ConfirmModal';
+import { updatePassword } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 export function Profile() {
   const { currentUser, login, signup, logout, updateProfile, deleteAccount, authError, clearAuthError, loginWithGoogle, loginAsGuest } = useAuth();
@@ -23,6 +25,48 @@ export function Profile() {
   const [editCompanyName, setEditCompanyName] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [imageError, setImageError] = useState('');
+
+  // Password change states
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setPasswordMessage({ type: 'error', text: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'নতুন পাসওয়ার্ড দুটি মেলেনি!' });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setPasswordMessage(null);
+    try {
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, newPassword);
+        setPasswordMessage({ type: 'success', text: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!' });
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordMessage({ type: 'error', text: 'অ্যাক্সেস মেলেনি। দয়া করে আবার লগইন করুন।' });
+      }
+    } catch (error: any) {
+      console.error('Password change error:', error);
+      let errMsg = 'পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে।';
+      if (error.code === 'auth/requires-recent-login') {
+        errMsg = 'নিরাপত্তার স্বার্থে পাসওয়ার্ড পরিবর্তন করার পূর্বে আপনাকে পুনরায় লগইন করতে হবে। দয়া করে লগআউট করে পুনরায় লগইন করুন।';
+      } else if (error.message) {
+        errMsg = `Error: ${error.message}`;
+      }
+      setPasswordMessage({ type: 'error', text: errMsg });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   // Report states
   const [showReportModal, setShowReportModal] = useState(false);
@@ -234,6 +278,78 @@ export function Profile() {
             Log Out
           </button>
         </div>
+
+        {/* Security & Password section (নিরাপত্তা ও পাসওয়ার্ড) */}
+        {auth.currentUser?.providerData.some(p => p.providerId === 'password') ? (
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                <Lock size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Security & Password (নিরাপত্তা ও পাসওয়ার্ড)</h3>
+            </div>
+            
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  New Password (নতুন পাসওয়ার্ড)
+                </label>
+                <input
+                  type="password"
+                  placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-3 px-4 text-slate-900 dark:text-white focus:ring-2 focus:ring-violet-500 outline-none animate-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Confirm Password (পাসওয়ার্ড নিশ্চিত করুন)
+                </label>
+                <input
+                  type="password"
+                  placeholder="পাসওয়ার্ডটি পুনরায় লিখুন"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl py-3 px-4 text-slate-900 dark:text-white focus:ring-2 focus:ring-violet-500 outline-none animate-none"
+                />
+              </div>
+
+              {passwordMessage && (
+                <div className={`p-4 rounded-xl text-xs flex items-center gap-2 ${
+                  passwordMessage.type === 'success' 
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                    : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                }`}>
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{passwordMessage.text}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isUpdatingPassword}
+                className="w-full py-4 rounded-2xl bg-violet-600 text-white font-bold hover:bg-violet-700 transition-colors disabled:opacity-50 text-sm"
+              >
+                {isUpdatingPassword ? 'Updating...' : 'Change Password (পাসওয়ার্ড পরিবর্তন করুন)'}
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 shadow-sm space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Lock size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Security (নিরাপত্তা ও পাসওয়ার্ড)</h3>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              আপনি <span className="font-semibold text-blue-600 dark:text-blue-400">Google Login</span> ব্যবহার করছেন, তাই আপনার পাসওয়ার্ডটি গুগল দ্বারা সুরক্ষিত এবং সরাসরি পরিবর্তন করার প্রয়োজন নেই।
+            </p>
+          </div>
+        )}
 
         {/* App Info & Privacy */}
         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 shadow-sm space-y-6">
