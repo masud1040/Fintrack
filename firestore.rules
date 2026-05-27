@@ -1,0 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Global Safety Net ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Entity Validations ---
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['name', 'email']) 
+        && data.keys().size() <= 4
+        && data.name is string 
+        && data.name.size() > 0 
+        && data.name.size() <= 100
+        && data.email is string
+        && data.email.size() > 0
+        && data.email.size() <= 200;
+    }
+
+    function isValidAccount(data) {
+      return data.keys().hasAll(['userId', 'name', 'initialBalance', 'currentBalance', 'type'])
+        && data.keys().size() <= 6
+        && data.userId == request.auth.uid
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 100
+        && data.initialBalance is number
+        && data.currentBalance is number
+        && data.type is string;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['userId', 'name', 'type'])
+        && data.keys().size() <= 6
+        && data.userId == request.auth.uid
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 100
+        && data.type in ['income', 'expense'];
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'amount', 'type', 'categoryId', 'accountId', 'date'])
+        && data.keys().size() <= 8
+        && data.userId == request.auth.uid
+        && data.amount is number
+        && data.amount >= 0
+        && data.type in ['income', 'expense']
+        && (data.categoryId is string || data.categoryId is int)
+        && (data.accountId is string || data.accountId is int)
+        && (data.date is string || data.date is timestamp);
+    }
+
+    function isValidRecurringTransaction(data) {
+      return data.keys().hasAll(['userId', 'amount', 'type', 'categoryId', 'accountId', 'frequency', 'startDate'])
+        && data.keys().size() <= 11
+        && data.userId == request.auth.uid
+        && data.amount is number
+        && data.amount >= 0
+        && data.type in ['income', 'expense']
+        && (data.categoryId is string || data.categoryId is int)
+        && (data.accountId is string || data.accountId is int)
+        && data.frequency in ['daily', 'weekly', 'monthly', 'yearly'];
+    }
+
+    function isValidDebt(data) {
+      return data.keys().hasAll(['userId', 'person', 'amount', 'type', 'status', 'date'])
+        && data.keys().size() <= 16
+        && data.userId == request.auth.uid
+        && data.person is string
+        && data.person.size() > 0
+        && data.amount is number
+        && data.amount >= 0
+        && data.type in ['payable', 'receivable']
+        && data.status in ['paid', 'unpaid']
+        && (!data.keys().hasAny(['id']) || data.id is int || data.id is number || data.id is string)
+        && (!data.keys().hasAny(['remainingAmount']) || data.remainingAmount is number)
+        && (!data.keys().hasAny(['payments']) || data.payments is list)
+        && (!data.keys().hasAny(['note']) || data.note is string)
+        && (!data.keys().hasAny(['phoneNumber']) || data.phoneNumber is string)
+        && (!data.keys().hasAny(['whatsappNumber']) || data.whatsappNumber is string)
+        && (!data.keys().hasAny(['dueDate']) || data.dueDate is string);
+    }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['userId', 'title', 'content', 'date', 'pinned'])
+        && data.keys().size() <= 7
+        && data.userId == request.auth.uid
+        && data.title is string
+        && data.content is string
+        && data.pinned is bool;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'title', 'message', 'type', 'date', 'read'])
+        && data.keys().size() <= 8
+        && data.userId == request.auth.uid
+        && data.title is string
+        && data.message is string
+        && data.type in ['info', 'warning', 'success', 'report']
+        && data.read is bool;
+    }
+
+    function isValidBazarList(data) {
+      return data.keys().hasAll(['userId', 'title', 'items', 'date', 'totalAmount'])
+        && data.keys().size() <= 7
+        && data.userId == request.auth.uid
+        && data.title is string
+        && data.items is list
+        && data.totalAmount is number;
+    }
+
+    // --- Path Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data, userId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /accounts/{accountId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAccount(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidAccount(request.resource.data);
+    }
+
+    match /categories/{categoryId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCategory(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidCategory(request.resource.data);
+    }
+
+    match /transactions/{transactionId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransaction(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidTransaction(request.resource.data);
+    }
+
+    match /recurringTransactions/{recurringId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidRecurringTransaction(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidRecurringTransaction(request.resource.data);
+    }
+
+    match /debts/{debtId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidDebt(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidDebt(request.resource.data);
+    }
+
+    match /notes/{noteId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNote(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidNote(request.resource.data);
+    }
+
+    match /notifications/{notificationId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNotification(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidNotification(request.resource.data);
+    }
+
+    match /bazarLists/{bazarListId} {
+      allow get, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidBazarList(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidBazarList(request.resource.data);
+    }
+  }
+}
