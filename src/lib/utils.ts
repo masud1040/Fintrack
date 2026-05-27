@@ -29,10 +29,11 @@ export async function savePDF(docOrBase64: any, fileName: string) {
         pdfBase64 = docOrBase64.output('datauristring').split(',')[1];
       }
       
+      // Directory.Cache is 100% safe and doesn't require storage permissions on Android 10+ / iOS
       const savedFile = await Filesystem.writeFile({
         path: fileName,
         data: pdfBase64,
-        directory: Directory.Documents,
+        directory: Directory.Cache,
       });
 
       await Share.share({
@@ -42,7 +43,20 @@ export async function savePDF(docOrBase64: any, fileName: string) {
         dialogTitle: 'Share PDF',
       });
     } catch (error) {
-      console.error('Error saving PDF on native platform:', error);
+      console.error('Error saving PDF on native platform, falling back to browser download:', error);
+      // Fallback to web download if Capacitor Plugins fail or are not properly bound
+      try {
+        if (typeof docOrBase64 === 'string') {
+          const link = document.createElement('a');
+          link.href = docOrBase64.startsWith('data:') ? docOrBase64 : `data:application/pdf;base64,${docOrBase64}`;
+          link.download = fileName;
+          link.click();
+        } else {
+          docOrBase64.save(fileName);
+        }
+      } catch (fallbackError) {
+        console.error('Pdf Save Fallback failed:', fallbackError);
+      }
     }
   } else {
     if (typeof docOrBase64 === 'string') {

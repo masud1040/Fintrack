@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db, User } from '../db';
+import { Capacitor } from '@capacitor/core';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -172,6 +173,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loginWithGoogle = async () => {
     setAuthError(null);
+    
+    // Check if we are running in an APK / Native mobile app where Firebase Web popup/redirect is blocked natively
+    if (Capacitor.isNativePlatform()) {
+      const errMsg = 'অ্যান্ড্রয়েড অ্যাপ (APK) এর ভেতর সরাসরি গুগল লগইন করা সম্ভব নয়। গুগল লগইন সফল করতে অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড দিয়ে একাউন্ট তৈরি (Signup) করুন অথবা আমাদের স্পেশাল ওয়েবসাইট সংস্করণ ব্যবহার করুন (যেখানে গুগল লগইন ও পিডিএফ ডাউনলোড উভয়ই শতভাগ সচল রয়েছে)।';
+      setAuthError(errMsg);
+      throw new Error('Google Sign-In is not supported inside standard Android WebView. Please use Email/Password signup or the Web app version.');
+    }
+
     try {
       const provider = new GoogleAuthProvider();
       // Use redirect directly on mobile web, or in embedded webviews
