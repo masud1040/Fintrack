@@ -35,7 +35,7 @@ jobs:
           # এখানে আপনার আসল App Name এবং App ID ব্যবহার করা হয়েছে
           cat <<EOF > capacitor.config.json
           {
-            "appId": "com.masud.fintrack",
+            "appId": "com.masud1.fintrack",
             "appName": "FinTrack",
             "webDir": "dist",
             "server": {
