@@ -152,77 +152,86 @@ export function Debts() {
     const dateStr = format(new Date(debt.date), 'dd MMMM yyyy');
 
     const htmlContent = `
-      <div style="padding: 40px; background-color: #ffffff; color: #1e293b; font-family: 'Inter', system-ui, sans-serif; line-height: 1.5; font-size: 13px; max-width: 680px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+      </style>
+      <div style="padding: 36px 40px; background-color: #ffffff; color: #0f172a; font-family: 'Inter', 'Hind Siliguri', sans-serif; line-height: 1.5; font-size: 12px; max-width: 580px; margin: 0 auto; box-sizing: border-box;">
+        
         <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
-          <div>
-            <h1 style="font-size: 24px; font-weight: 850; color: #1e1b4b; margin: 0; tracking: -0.02em;">Payment Receipt</h1>
-            <p style="font-size: 14px; font-weight: 500; color: #6366f1; margin: 4px 0 0 0; font-family: 'Hind Siliguri', sans-serif;">পরিশোধের রসিদ</p>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 20px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 34px; height: 34px; background-color: #0f172a; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 14px;">
+              FT
+            </div>
+            <div>
+              <div style="font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">FinTrack</div>
+              <div style="font-size: 10px; color: #64748b;">Debt & Loan Settlement Voucher</div>
+            </div>
           </div>
           <div style="text-align: right;">
-            <span style="font-weight: 800; color: #0f172a; font-size: 16px;">FinTrack</span>
-            <p style="font-size: 11px; color: #64748b; margin: 2px 0 0 0;">Secure Debt Loop Registry</p>
+            <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase;">SETTLEMENT RECEIPT</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">REC-DEBT-${debt.id || '9403'}</div>
           </div>
         </div>
 
         <!-- Main Banner with Total -->
-        <div style="background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 1px solid #ddd6fe; border-radius: 12px; padding: 24px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <p style="font-size: 11px; font-weight: 700; color: #7c3aed; text-transform: uppercase; margin: 0; letter-spacing: 0.05em; font-family: 'Hind Siliguri', sans-serif;">
-              ${isPayable ? 'YOU PAID (আপনি পরিশোধ করেছেন)' : 'YOU RECEIVED (আপনি আদায় করেছেন)'}
-            </p>
-            <h2 style="font-size: 32px; font-weight: 900; color: #1e1b4b; margin: 6px 0 0 0;">${amountStr}</h2>
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
+          <div style="font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Hind Siliguri', sans-serif;">
+            ${isPayable ? 'পরিশোধের পরিমাণ (Paid Settlement)' : 'আদায়ের পরিমাণ (Received Settlement)'}
           </div>
-          <div style="text-align: right;">
-            <p style="font-size: 11px; color: #64748b; margin: 0;">SETTLEMENT DATE</p>
-            <p style="font-size: 13px; font-weight: 700; color: #1f2937; margin: 4px 0 0 0;">${dateStr}</p>
+          <div style="font-size: 26px; font-weight: 900; color: ${isPayable ? '#dc2626' : '#059669'}; margin-top: 6px; font-family: 'Inter', sans-serif;">
+            ${amountStr}
+          </div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+            Settlement Date: ${dateStr}
           </div>
         </div>
 
         <!-- Details Table style -->
-        <h3 style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0 0 12px 0; letter-spacing: 0.02em; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; font-family: 'Hind Siliguri', sans-serif;">
-          INVOICE DETAILS (রসিদ বিবরণী)
-        </h3>
-
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px;">
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Status (অবস্থা)</span>
-            <span style="font-weight: 700; color: #10b981;">PROCESSED & SETTLED (সফলভাবে পরিশোধিত)</span>
+        <div style="margin-bottom: 24px;">
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; font-family: 'Hind Siliguri', sans-serif;">
+            রসিদ বিবরণী (Invoice Details)
           </div>
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Receipt ID (রসিদ নং)</span>
-            <span style="font-weight: 700; color: #1f2937;">REC-DEBT-00${debt.id || '9403'}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Counterpart Person (ব্যক্তি)</span>
-            <span style="font-weight: 700; color: #1f2937;">${debt.person}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Type of Transaction (ধরণ)</span>
-            <span style="font-weight: 700; color: #1f2937;">${isPayable ? 'Settled Payable (দেনা পরিশোধ)' : 'Settled Receivable (পাওনা আদায়)'}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Registry Issuer (নিবন্ধক)</span>
-            <span style="font-weight: 700; color: #1f2937;">${currentUser?.name || 'FinTrack User'}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px;">
-            <span style="font-weight: 600; color: #64748b; font-family: 'Hind Siliguri', sans-serif;">Date Printed (রসিদ তৈরীর সময়)</span>
-            <span style="font-weight: 700; color: #1f2937;">${nowOutput}</span>
-          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+            <tbody>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b; width: 40%;">ব্যক্তি / সংশ্লিষ্ট পক্ষ</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right; font-family: 'Hind Siliguri', sans-serif;">${debt.person}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">ধরণ (Transaction Type)</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right;">${isPayable ? 'দেনা পরিশোধ (Settled Payable)' : 'পাওনা আদায় (Settled Receivable)'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">নিবন্ধক (Issuer)</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right; font-family: 'Hind Siliguri', sans-serif;">${currentUser?.name || 'FinTrack User'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">অবস্থা (Status)</td>
+                <td style="padding: 9px 0; font-weight: 700; color: #059669; text-align: right;">পরিশোধিত ও নিষ্পত্তি (Settled)</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <!-- Note Section -->
         ${debt.note ? `
-          <div style="background-color: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; padding: 16px; margin-bottom: 40px;">
-            <p style="font-size: 11px; font-weight: 700; color: #71717a; margin: 0 0 4px 0; text-transform: uppercase;">Note / বিবরণী</p>
-            <p style="font-size: 13px; color: #3f3f46; font-style: italic; margin: 0; font-family: 'Hind Siliguri', sans-serif;">"${debt.note}"</p>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; margin-bottom: 24px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">বিবরণী / Note</div>
+            <div style="font-size: 11.5px; color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">"${debt.note}"</div>
           </div>
         ` : ''}
 
         <!-- Footer -->
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; text-align: center; font-size: 11px; color: #94a3b8; display: flex; flex-direction: column; gap: 4px;">
-          <span>FinTrack secured digital ledger transaction statement. Generated with 256-bit indexing.</span>
-          <span>Terms of Service and Privacy Policy apply. FinTrack © 2026. All rights reserved.</span>
+        <div style="margin-top: 32px; padding-top: 16px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10px; color: #94a3b8;">
+          <div>
+            <div style="font-weight: 600; color: #64748b;">FinTrack Digital Debt Registry</div>
+            <div style="margin-top: 2px;">Generated: ${nowOutput}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 600; color: #64748b;">Verified Settlement</div>
+          </div>
         </div>
       </div>
     `;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, CreditCard, Equal, Calendar, User, Moon, Sun, Bell, AlertCircle, StickyNote, ShoppingBag } from 'lucide-react';
+import { Home, CreditCard, Equal, Calendar, User, Moon, Sun, Bell, AlertCircle, StickyNote, ShoppingBag, CalendarDays } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,13 +47,14 @@ export function Layout({ children, currentTab, setCurrentTab }: LayoutProps) {
     }
   }, [isDark]);
 
-  const navItems: Array<{ id: string; icon: any; isFab?: boolean }> = [
-    { id: 'dashboard', icon: Home },
-    { id: 'accounts', icon: CreditCard },
-    { id: 'bazar', icon: ShoppingBag },
-    { id: 'transactions', icon: Calendar },
-    { id: 'notes', icon: StickyNote },
-    { id: 'profile', icon: User },
+  const navItems: Array<{ id: string; label: string; icon: any; isFab?: boolean }> = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'accounts', label: 'Accounts', icon: CreditCard },
+    { id: 'ledger', label: 'মাসিক শিট', icon: CalendarDays },
+    { id: 'transactions', label: 'Transactions', icon: Calendar },
+    { id: 'bazar', label: 'Bazar', icon: ShoppingBag },
+    { id: 'notes', label: 'Notes', icon: StickyNote },
+    { id: 'profile', label: 'Profile', icon: User },
   ];
 
   const handleTabClick = (id: string) => {
@@ -112,7 +113,7 @@ export function Layout({ children, currentTab, setCurrentTab }: LayoutProps) {
                   />
                 )}
                 <item.icon size={20} className={cn(item.isFab && "text-slate-400")} />
-                <span className="capitalize">{item.id}</span>
+                <span className="font-semibold text-sm">{item.label || item.id}</span>
               </button>
             );
           })}
@@ -120,41 +121,42 @@ export function Layout({ children, currentTab, setCurrentTab }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0 relative">
+      <main className="flex-1 overflow-y-auto pb-28 md:pb-0 relative w-full">
         {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-950 sticky top-0 z-40 border-b border-slate-100 dark:border-slate-900">
-          <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 dark:border-slate-800">
+          <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
             FinTrack
           </h1>
-          <button
-            onClick={() => setIsNotificationOpen(true)}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
-          >
-            <Bell size={22} className="text-slate-600 dark:text-slate-400" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-950" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+              title="Toggle Theme"
+            >
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button
+              onClick={() => setIsNotificationOpen(true)}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors relative"
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900" />
+              )}
+            </button>
+          </div>
         </header>
-
-        {/* Mobile Theme Toggle */}
-        <div className="md:hidden fixed bottom-28 right-6 z-50">
-          <button
-            onClick={() => setIsDark(!isDark)}
-            className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-lg border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition-transform active:scale-95"
-          >
-            {isDark ? <Sun size={24} /> : <Moon size={24} />}
-          </button>
-        </div>
         
-        <div className="p-4 md:p-8 max-w-md mx-auto md:max-w-5xl">
+        <div className="p-3.5 sm:p-5 md:p-8 max-w-6xl mx-auto w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentTab}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+              className="w-full"
             >
               {children}
             </motion.div>
@@ -163,66 +165,35 @@ export function Layout({ children, currentTab, setCurrentTab }: LayoutProps) {
       </main>
 
       {/* Bottom Nav for Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 pb-6 pt-2 px-6 z-50 rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-        <div className="flex justify-between items-center relative h-12">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg pb-safe pt-1 px-1.5 z-50 border-t border-slate-200/80 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
+        <div className="grid grid-cols-7 gap-0.5 items-center justify-items-center py-1">
           {navItems.map((item) => {
             const isActive = currentTab === item.id;
-            
-            if (item.isFab) {
-              return (
-                <motion.div 
-                  key={item.id} 
-                  className="relative"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <button
-                    onClick={() => handleTabClick(item.id)}
-                    className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full flex items-center justify-center transition-transform"
-                  >
-                    <item.icon size={18} strokeWidth={2} />
-                  </button>
-                </motion.div>
-              );
-            }
 
             return (
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id)}
-                className="relative p-3 flex flex-col items-center justify-center group"
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTabIndicator"
-                    className="absolute -top-6 w-12 h-12 bg-violet-600 rounded-full shadow-lg shadow-violet-500/40 -z-10"
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  />
+                className={cn(
+                  "w-full flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all relative min-h-[50px]",
+                  isActive
+                    ? "text-violet-600 dark:text-violet-400 font-bold bg-violet-50 dark:bg-violet-950/50"
+                    : "text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                 )}
-                
-                <motion.div
-                  animate={{
-                    y: isActive ? -24 : 0,
-                    color: isActive ? '#ffffff' : (isDark ? '#475569' : '#cbd5e1'),
-                    scale: isActive ? 1.1 : 1
-                  }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="relative z-10"
-                >
-                  <item.icon 
-                    size={24} 
-                    strokeWidth={isActive ? 2.5 : 2} 
-                  />
-                </motion.div>
-
+              >
+                <item.icon 
+                  size={19} 
+                  strokeWidth={isActive ? 2.5 : 1.9}
+                  className={cn("transition-transform", isActive && "scale-110")}
+                />
+                <span className={cn(
+                  "text-[9.5px] tracking-tight text-center leading-tight mt-1 truncate max-w-full font-medium",
+                  isActive ? "font-extrabold text-violet-600 dark:text-violet-400" : "text-slate-500 dark:text-slate-400"
+                )}>
+                  {item.label}
+                </span>
                 {isActive && (
-                  <motion.span
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 4 }}
-                    className="text-[10px] font-bold text-violet-600 absolute top-6"
-                  >
-                    {item.id.charAt(0).toUpperCase() + item.id.slice(1)}
-                  </motion.span>
+                  <span className="w-1 h-1 rounded-full bg-violet-600 dark:bg-violet-400 absolute top-1 right-2" />
                 )}
               </button>
             );

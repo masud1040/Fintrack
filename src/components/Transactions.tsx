@@ -13,6 +13,8 @@ import { ConfirmModal } from './ui/ConfirmModal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateHtmlPdf } from '../lib/htmlToPdfHelper';
+import { generateDailyIncomeExpenseReportPDF } from '../lib/pdfExport';
+import { ChevronLeft, ChevronRight, FileText, CalendarDays, TrendingUp, TrendingDown, Scale } from 'lucide-react';
 
 export function Transactions() {
   const { currentUser } = useAuth();
@@ -25,8 +27,19 @@ export function Transactions() {
   const [note, setNote] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  
+  // Date Filtering Mode & Controls
+  const [filterPeriodMode, setFilterPeriodMode] = useState<'month' | 'day' | 'range' | 'all'>('month');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [selectedSingleDate, setSelectedSingleDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
+  
+  // View Switcher (Daily breakdown vs Chronological list)
+  const [viewMode, setViewMode] = useState<'daily' | 'all'>('daily');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -109,11 +122,110 @@ export function Transactions() {
     const matchesType = filterType === 'all' || tx.type === filterType;
 
     const txDate = startOfDay(tx.date);
-    const matchesStartDate = !filterStartDate || txDate >= startOfDay(new Date(filterStartDate));
-    const matchesEndDate = !filterEndDate || txDate <= startOfDay(new Date(filterEndDate));
 
-    return matchesSearch && matchesType && matchesStartDate && matchesEndDate;
+    let matchesPeriod = true;
+    if (filterPeriodMode === 'month') {
+      const d = new Date(tx.date);
+      matchesPeriod = d.getFullYear() === selectedYear && (d.getMonth() + 1) === selectedMonth;
+    } else if (filterPeriodMode === 'day') {
+      matchesPeriod = format(txDate, 'yyyy-MM-dd') === selectedSingleDate;
+    } else if (filterPeriodMode === 'range') {
+      const matchesStartDate = !filterStartDate || txDate >= startOfDay(new Date(filterStartDate));
+      const matchesEndDate = !filterEndDate || txDate <= startOfDay(new Date(filterEndDate));
+      matchesPeriod = matchesStartDate && matchesEndDate;
+    }
+
+    return matchesSearch && matchesType && matchesPeriod;
   });
+
+  // Calculate high-level financial summary for current active filter
+  const totalIncome = filteredTransactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalExpense = filteredTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const netPeriodBalance = totalIncome - totalExpense;
+
+  const totalAccountsBalance = accounts.reduce(
+    (acc, a) => acc + (a.currentBalance || 0),
+    0
+  );
+
+  // Group transactions for the "Daily Income & Expense" combined breakdown view
+  const dailyGroupedMap: { [dateKey: string]: { date: Date; incomeList: any[]; expenseList: any[]; dayIncome: number; dayExpense: number } } = {};
+
+  filteredTransactions.forEach(tx => {
+    const d = new Date(tx.date);
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (!dailyGroupedMap[dateKey]) {
+      dailyGroupedMap[dateKey] = {
+        date: d,
+        incomeList: [],
+        expenseList: [],
+        dayIncome: 0,
+        dayExpense: 0,
+      };
+    }
+    if (tx.type === 'income') {
+      dailyGroupedMap[dateKey].incomeList.push(tx);
+      dailyGroupedMap[dateKey].dayIncome += tx.amount;
+    } else {
+      dailyGroupedMap[dateKey].expenseList.push(tx);
+      dailyGroupedMap[dateKey].dayExpense += tx.amount;
+    }
+  });
+
+  const sortedDailyKeys = Object.keys(dailyGroupedMap).sort((a, b) => b.localeCompare(a));
+
+  const monthNamesEng = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const monthNamesBn = [
+    'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+    'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+  ];
+
+  const getPeriodLabel = () => {
+    if (filterPeriodMode === 'month') {
+      return `${monthNamesEng[selectedMonth - 1]} ${selectedYear} (${monthNamesBn[selectedMonth - 1]} ${selectedYear})`;
+    } else if (filterPeriodMode === 'day') {
+      try {
+        return format(parseISO(selectedSingleDate), 'dd MMMM yyyy (EEEE)');
+      } catch {
+        return selectedSingleDate;
+      }
+    } else if (filterPeriodMode === 'range') {
+      return `${filterStartDate || 'শুরু'} থেকে ${filterEndDate || 'আজ'}`;
+    }
+    return 'All-Time (সকল লেনদেন)';
+  };
+
+  const handleDownloadFullDailyPDF = async () => {
+    if (!currentUser) return;
+    setIsGeneratingPdf(true);
+    try {
+      await generateDailyIncomeExpenseReportPDF({
+        userId: currentUser.id!,
+        userName: currentUser.name || 'User',
+        userEmail: currentUser.email,
+        phoneNumber: currentUser.phoneNumber,
+        companyName: currentUser.companyName,
+        periodLabel: getPeriodLabel(),
+        transactions: filteredTransactions,
+        accounts,
+        categories: allCategories,
+      });
+    } catch (err) {
+      console.error('Error generating daily PDF report:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   const handleAddCategory = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -413,177 +525,160 @@ export function Transactions() {
     const account = accounts.find((a: any) => a.id === tx.accountId);
     const isExpense = tx.type === 'expense';
     const nowOutput = format(new Date(), 'dd MMM yyyy, hh:mm a');
-    const displayDate = format(new Date(tx.date), 'MMMM do, yyyy');
-    const displayTime = format(new Date(tx.date), 'h:mm a');
+    const displayDate = format(new Date(tx.date), 'dd MMMM yyyy');
+    const displayTime = format(new Date(tx.date), 'hh:mm a');
 
     const htmlContent = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
       </style>
-      <div style="padding: 40px; background-color: #f8fafc; color: #1e293b; font-family: 'Inter', 'Hind Siliguri', sans-serif; line-height: 1.6; max-width: 580px; margin: 0 auto; box-sizing: border-box;">
-        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-          
-          <!-- Top Icon (Card style) -->
-          <div style="text-align: center; margin-bottom: 24px;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background-color: ${isExpense ? '#eff6ff' : '#f0fdf4'}; color: ${isExpense ? '#1d4ed8' : '#15803d'}; margin-bottom: 16px;">
-              ${isExpense ? `
-                <!-- Card Icon SVG -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-              ` : `
-                <!-- Wallet/Received Icon SVG -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>
-              `}
+      <div style="padding: 36px 40px; background-color: #ffffff; color: #0f172a; font-family: 'Inter', 'Hind Siliguri', sans-serif; line-height: 1.5; max-width: 580px; margin: 0 auto; box-sizing: border-box;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 34px; height: 34px; background-color: #0f172a; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 14px;">
+              FT
             </div>
-            
-            <h2 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; letter-spacing: -0.02em;">
-              ${isExpense ? 'You paid' : 'You received'} <span style="font-family: 'Inter', sans-serif;">${formatCurrency(tx.amount)}</span>
-            </h2>
-            <p style="font-size: 13px; color: #64748b; margin: 0; font-weight: 500;">
-              ${displayDate} at ${displayTime}
-            </p>
-          </div>
-
-          <!-- Product / Category List -->
-          <div style="margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1.5px solid #f1f5f9; font-size: 14px;">
-              <span style="font-weight: 600; color: #0f172a; font-family: 'Hind Siliguri', 'Inter', sans-serif;">${category?.name || 'General Transaction'}</span>
-              <span style="font-weight: 700; color: #0f172a;">${formatCurrency(tx.amount)}</span>
-            </div>
-            
-            ${tx.note ? `
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1.5px solid #f1f5f9; font-size: 13px; color: #475569;">
-                <span>Note / বিবরণী</span>
-                <span style="font-weight: 500; text-align: right; font-family: 'Hind Siliguri', 'Inter', sans-serif; max-width: 250px;">${tx.note}</span>
-              </div>
-            ` : ''}
-
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0 12px 0; font-size: 14px; font-weight: 800; color: #0f172a;">
-              <span>Total</span>
-              <span style="font-size: 16px;">${formatCurrency(tx.amount)}</span>
+            <div>
+              <div style="font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">FinTrack</div>
+              <div style="font-size: 10px; color: #64748b;">Transaction Voucher</div>
             </div>
           </div>
-
-          <!-- Paid with / Deposited into -->
-          <div style="margin-bottom: 32px; font-size: 13px;">
-            <p style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; margin: 0 0 10px 0;">
-              ${isExpense ? 'Paid with' : 'Deposited into'}
-            </p>
-            <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #0f172a; font-family: 'Hind Siliguri', 'Inter', sans-serif;">
-              <span>${account?.name || 'Personal Account'}</span>
-              <span>${formatCurrency(tx.amount)}</span>
-            </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase;">${isExpense ? 'PAYMENT VOUCHER' : 'RECEIPT VOUCHER'}</div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">TXN-${tx.id || 'N/A'}</div>
           </div>
-
-          <!-- Invoice Details Section -->
-          <div style="border-top: 1.5px solid #f1f5f9; padding-top: 24px; margin-bottom: 32px;">
-            <h3 style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; margin: 0 0 16px 0;">Invoice details</h3>
-            
-            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Status</span>
-                <span style="font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 4px;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle;"><polyline points="20 6 9 17 4 12"/></svg>
-                  Processed
-                </span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Transaction ID</span>
-                <span style="font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #0f172a;">TXN-${tx.id || 'N/A'}-HEX</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Account ID</span>
-                <span style="font-weight: 600; color: #0f172a;">ACC-00${tx.accountId}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Reference type</span>
-                <span style="font-weight: 600; color: #0f172a;">${tx.type === 'income' ? 'Direct Credit' : 'Direct Debit'}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Transaction date</span>
-                <span style="font-weight: 600; color: #0f172a;">${displayDate}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-weight: 500;">Transaction time</span>
-                <span style="font-weight: 600; color: #0f172a;">${displayTime}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Real Image Buttons (Email & Close) -->
-          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-            <div style="background-color: #0c4a6e; color: #ffffff; text-align: center; font-size: 12px; font-weight: 700; padding: 12px; border-radius: 8px; cursor: default; letter-spacing: 0.02em;">
-              ✉ E-mail me a receipt
-            </div>
-            <div style="background-color: #ffffff; border: 1.5px solid #e2e8f0; color: #475569; text-align: center; font-size: 12px; font-weight: 700; padding: 11px; border-radius: 8px; cursor: default;">
-              Close
-            </div>
-          </div>
-
-          <!-- Branding Footer -->
-          <div style="text-align: center; margin-top: 40px; font-size: 16px; font-weight: 900; color: #1e3a8a; letter-spacing: 0.05em; font-family: 'Inter', sans-serif;">
-            FinTrack
-            <p style="font-size: 10px; color: #94a3b8; font-weight: 500; margin: 4px 0 0 0; letter-spacing: 0;">Terms of Service • Privacy Policy</p>
-          </div>
-
         </div>
+
+        <!-- Main Amount Card -->
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+          <div style="font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">
+            ${isExpense ? 'পরিশোধিত অর্থ (Total Debited)' : 'সংগৃহীত অর্থ (Total Credited)'}
+          </div>
+          <div style="font-size: 26px; font-weight: 900; color: ${isExpense ? '#dc2626' : '#059669'}; margin-top: 6px; font-family: 'Inter', sans-serif;">
+            ${isExpense ? '-' : '+'}${formatCurrency(tx.amount)}
+          </div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+            ${displayDate} at ${displayTime}
+          </div>
+        </div>
+
+        <!-- Transaction Details Table -->
+        <div style="margin-bottom: 24px;">
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">
+            লেনদেন বিবরণী (Transaction Details)
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+            <tbody>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b; width: 40%;">ক্যাটাগরি / খাত</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right; font-family: 'Hind Siliguri', sans-serif;">${category?.name || 'General'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">একাউন্ট / হিসাব</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right; font-family: 'Hind Siliguri', sans-serif;">${account?.name || 'Cash Wallet'}</td>
+              </tr>
+              ${tx.note ? `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 9px 0; color: #64748b;">নোট / বিবরণ</td>
+                  <td style="padding: 9px 0; font-weight: 500; color: #0f172a; text-align: right; font-family: 'Hind Siliguri', sans-serif;">${tx.note}</td>
+                </tr>
+              ` : ''}
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">লেনদেনের ধরণ</td>
+                <td style="padding: 9px 0; font-weight: 600; color: #0f172a; text-align: right;">${tx.type === 'income' ? 'আয় (Direct Credit)' : 'ব্যয় (Direct Debit)'}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 9px 0; color: #64748b;">অবস্থা (Status)</td>
+                <td style="padding: 9px 0; font-weight: 700; color: #059669; text-align: right;">সফল (Completed)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div style="margin-top: 32px; padding-top: 16px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10px; color: #94a3b8;">
+          <div>
+            <div style="font-weight: 600; color: #64748b;">FinTrack Digital Ledger Voucher</div>
+            <div style="margin-top: 2px;">Generated: ${nowOutput}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 600; color: #64748b;">Verified Transaction</div>
+          </div>
+        </div>
+
       </div>
     `;
 
-    const safeFileName = `invoice_${category?.name?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'tx'}_${format(new Date(tx.date), 'yyyyMMdd')}.pdf`;
+    const safeFileName = `voucher_${category?.name?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'tx'}_${format(new Date(tx.date), 'yyyyMMdd')}.pdf`;
     await generateHtmlPdf(htmlContent, { fileName: safeFileName, isThermalReceipt: false });
   };
 
   const handleDownloadPeriodReceipt = async (reportType: 'expense' | 'income') => {
     const isExpense = reportType === 'expense';
-    const nowOutput = format(new Date(), 'PPPP p');
+    const nowOutput = format(new Date(), 'dd MMM yyyy, hh:mm a');
     const periodTransactions = filteredTransactions.filter(tx => tx.type === reportType);
     const cumulativeTotal = periodTransactions.reduce((acc, tx) => acc + tx.amount, 0);
 
     const htmlContent = `
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
       </style>
-      <div style="padding: 50px; background-color: #ffffff; color: #1e293b; font-family: 'Inter', 'Hind Siliguri', sans-serif; line-height: 1.5; box-sizing: border-box; width: 794px; min-height: 1123px; display: flex; flex-direction: column; justify-content: space-between;">
-        <div>
-          <!-- Logo & Title Header -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 24px; margin-bottom: 30px;">
-            <div>
-              <h1 style="font-size: 24px; font-weight: 900; color: #1e3a8a; margin: 0; letter-spacing: -0.02em;">FinTrack</h1>
-              <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Personal Wealth Management Platform</p>
+      <div style="padding: 36px 40px; background-color: #ffffff; color: #0f172a; font-family: 'Inter', 'Hind Siliguri', sans-serif; line-height: 1.5; box-sizing: border-box; max-width: 794px; margin: 0 auto;">
+        
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 22px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 38px; height: 38px; background-color: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 16px;">
+              FT
             </div>
-            <div style="text-align: right;">
-              <h2 style="font-size: 16px; font-weight: 800; color: #0f172a; margin: 0;">${isExpense ? 'EXPENSES STATEMENT (ব্যয় বিবরণী)' : 'INCOME STATEMENT (আয় বিবরণী)'}</h2>
-              <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">Generated on: ${nowOutput}</p>
+            <div>
+              <div style="font-size: 18px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em;">FinTrack</div>
+              <div style="font-size: 10.5px; color: #64748b;">Financial Statement & Itemized Audit</div>
             </div>
           </div>
+          <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">
+              ${isExpense ? 'EXPENSES STATEMENT (ব্যয় বিবরণী)' : 'INCOME STATEMENT (আয় বিবরণী)'}
+            </div>
+            <div style="font-size: 10px; color: #94a3b8; margin-top: 3px;">Generated: ${nowOutput}</div>
+          </div>
+        </div>
 
-          <!-- Summary Statistics section -->
-          <div style="background-color: #f8fafc; border: 1.5px solid #edf2f7; border-radius: 14px; padding: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 32px;">
-            <div>
-              <span style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Report Type</span>
-              <span style="font-size: 14px; font-weight: 700; color: ${isExpense ? '#ef4444' : '#10b981'}; font-family: 'Hind Siliguri', sans-serif;">${isExpense ? 'Debited Expense (খরচ)' : 'Credited Income (আয়)'}</span>
-            </div>
-            <div>
-              <span style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Record Count</span>
-              <span style="font-size: 14px; font-weight: 700; color: #0f172a;">${periodTransactions.length} Transactions</span>
-            </div>
-            <div>
-              <span style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Cumulative Volume</span>
-              <span style="font-size: 16px; font-weight: 800; color: #0f172a;">${formatCurrency(cumulativeTotal)}</span>
+        <!-- Metric Cards -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">বিবরণীর ধরণ (Report Type)</div>
+            <div style="font-size: 14px; font-weight: 800; color: ${isExpense ? '#dc2626' : '#059669'}; margin-top: 4px; font-family: 'Hind Siliguri', sans-serif;">
+              ${isExpense ? 'খরচ বিবরণী (Expenses)' : 'আয় বিবরণী (Incomes)'}
             </div>
           </div>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মোট লেনদেন সংখ্যা</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${periodTransactions.length} টি</div>
+          </div>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">সর্বমোট পরিমাণ (Total)</div>
+            <div style="font-size: 16px; font-weight: 800; color: ${isExpense ? '#dc2626' : '#059669'}; margin-top: 4px; font-family: 'Inter', sans-serif;">
+              ${isExpense ? '-' : '+'}${formatCurrency(cumulativeTotal)}
+            </div>
+          </div>
+        </div>
 
-          <!-- Table Details -->
-          <h3 style="font-size: 13px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px 0;">Transaction details (লেনদেন বিবরণী)</h3>
-          <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 40px; font-size: 12px;">
+        <!-- Table -->
+        <div style="margin-bottom: 28px;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
             <thead>
-              <tr style="border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700;">
-                <th style="padding: 10px 6px;">SL</th>
-                <th style="padding: 10px 6px;">Date (তারিখ)</th>
-                <th style="padding: 10px 6px;">Category (ক্যাটাগরি)</th>
-                <th style="padding: 10px 6px;">Account (হিসাব)</th>
-                <th style="padding: 10px 6px;">Note (তথ্যাদি)</th>
-                <th style="padding: 10px 6px; text-align: right;">Amount (টাকা)</th>
+              <tr style="background-color: #f8fafc; color: #475569; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+                <th style="padding: 10px 12px; width: 40px; text-align: center;">SL</th>
+                <th style="padding: 10px 12px; width: 95px;">Date (তারিখ)</th>
+                <th style="padding: 10px 12px; width: 130px;">Category (ক্যাটাগরি)</th>
+                <th style="padding: 10px 12px; width: 120px;">Account (হিসাব)</th>
+                <th style="padding: 10px 12px;">Note (বিবরণ)</th>
+                <th style="padding: 10px 12px; width: 120px; text-align: right;">Amount (টাকা)</th>
               </tr>
             </thead>
             <tbody>
@@ -591,29 +686,50 @@ export function Transactions() {
                 const cat = allCategories.find((c: any) => c.id === tx.categoryId);
                 const acc = accounts.find((a: any) => a.id === tx.accountId);
                 return `
-                  <tr style="border-bottom: 1px solid #f1f5f9; color: #334155;">
-                    <td style="padding: 12px 6px; font-weight: 500;">${idx + 1}</td>
-                    <td style="padding: 12px 6px; font-family: monospace;">${format(new Date(tx.date), 'yyyy-MM-dd')}</td>
-                    <td style="padding: 12px 6px; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">${cat?.name || 'Uncategorized'}</td>
-                    <td style="padding: 12px 6px; font-family: 'Hind Siliguri', sans-serif;">${acc?.name || 'Cash Wallet'}</td>
-                    <td style="padding: 12px 6px; font-family: 'Hind Siliguri', sans-serif; color: #64748b; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${tx.note || '-'}</td>
-                    <td style="padding: 12px 6px; font-weight: 700; text-align: right; color: ${isExpense ? '#dc2626' : '#16a34a'};">${formatCurrency(tx.amount)}</td>
+                  <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 1 ? '#fafafa' : '#ffffff'};">
+                    <td style="padding: 9px 12px; text-align: center; color: #94a3b8; font-size: 10.5px;">${idx + 1}</td>
+                    <td style="padding: 9px 12px; color: #475569; font-weight: 500;">${format(new Date(tx.date), 'dd MMM yyyy')}</td>
+                    <td style="padding: 9px 12px;">
+                      <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background-color: ${isExpense ? '#fef2f2' : '#ecfdf5'}; color: ${isExpense ? '#991b1b' : '#065f46'}; font-family: 'Hind Siliguri', sans-serif;">
+                        ${cat?.name || 'Uncategorized'}
+                      </span>
+                    </td>
+                    <td style="padding: 9px 12px; color: #475569; font-family: 'Hind Siliguri', sans-serif;">${acc?.name || 'Cash Wallet'}</td>
+                    <td style="padding: 9px 12px; color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${tx.note || '-'}</td>
+                    <td style="padding: 9px 12px; font-weight: 700; text-align: right; color: ${isExpense ? '#dc2626' : '#059669'}; font-family: 'Inter', sans-serif;">
+                      ${isExpense ? '-' : '+'}${formatCurrency(tx.amount)}
+                    </td>
                   </tr>
                 `;
               }).join('') : `
                 <tr>
-                  <td colspan="6" style="padding: 30px; text-align: center; color: #94a3b8; font-weight: 500;">No transactions registered.</td>
+                  <td colspan="6" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">কোন রেকর্ড পাওয়া যায়নি।</td>
                 </tr>
               `}
+              <tr style="background-color: #f8fafc; border-top: 1.5px solid #e2e8f0; font-weight: 800;">
+                <td colspan="5" style="padding: 10px 12px; text-transform: uppercase; font-size: 10.5px; color: #475569;">
+                  TOTAL CUMULATIVE VOLUME (সর্বমোট পরিমাণ)
+                </td>
+                <td style="padding: 10px 12px; text-align: right; color: ${isExpense ? '#dc2626' : '#059669'}; font-size: 12px; font-family: 'Inter', sans-serif;">
+                  ${isExpense ? '-' : '+'}${formatCurrency(cumulativeTotal)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
 
-        <!-- Bottom Details footer -->
-        <div style="border-top: 1.5px dashed #cbd5e1; padding-top: 20px; font-size: 11px; color: #94a3b8; font-weight: 500; display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
-          <span>FinTrack Ledger statement of financial history.</span>
-          <span>Document Ref: BDT-STMT-${format(new Date(), 'yyyyMMdd')}-X</span>
+        <!-- Footer -->
+        <div style="margin-top: 36px; padding-top: 18px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10.5px; color: #94a3b8;">
+          <div>
+            <div style="font-weight: 600; color: #64748b;">FinTrack Wealth Platform • Ledger Statement</div>
+            <div style="margin-top: 2px;">Document Hash: BDT-STMT-${format(new Date(), 'yyyyMMdd')}-X</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="color: #64748b; font-weight: 600;">Verified Digital Record</div>
+            <div style="margin-top: 2px;">Page 1 of 1</div>
+          </div>
         </div>
+
       </div>
     `;
 
@@ -631,132 +747,368 @@ export function Transactions() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Transactions</h2>
-        <div className="flex items-center gap-3">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            <span>লেনদেন ও আর্থিক স্টেটমেন্ট</span>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+              Transactions
+            </span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            ফিল্টারকৃত সময়কাল: <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">{getPeriodLabel()}</strong>
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {/* PDF Download Button */}
+          <button
+            onClick={handleDownloadFullDailyPDF}
+            disabled={isGeneratingPdf || filteredTransactions.length === 0}
+            className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 px-3.5 py-2 rounded-xl font-bold transition-all text-xs flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="মাসিক দৈনিক আয় ও ব্যয় PDF ডাউনলোড করুন"
+          >
+            {isGeneratingPdf ? (
+              <svg className="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : (
+              <Download size={15} />
+            )}
+            <span>দৈনিক আয়-ব্যয় PDF</span>
+          </button>
+
           <button
             onClick={() => {
               if (!isAdding) resetForm();
               else setIsAdding(false);
               if (!isAdding) setIsAdding(true);
             }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 text-sm shrink-0"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold transition-all flex items-center gap-1.5 text-xs shrink-0 shadow-sm"
           >
             <Plus size={16} />
-            <span className="hidden sm:inline">Add New</span>
+            <span>নতুন লেনদেন</span>
           </button>
+
           <button
             onClick={() => setShowRecurringList(true)}
             className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             title="Manage Recurring Transactions"
           >
-            <Repeat size={20} />
+            <Repeat size={18} />
           </button>
         </div>
       </div>
 
-      {/* Dynamic Summary Billing Card matching the requested design */}
-      <div className="max-w-md mx-auto w-full">
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-150 dark:border-slate-800 shadow-xl overflow-hidden relative p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setSummaryType('expense')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-                  summaryType === 'expense'
-                    ? "bg-red-500 text-white"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                )}
-              >
-                Expenses Paid
-              </button>
-              <button
-                type="button"
-                onClick={() => setSummaryType('income')}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-                  summaryType === 'income'
-                    ? "bg-emerald-500 text-white"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                )}
-              >
-                Income Received
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setHideBalance(!hideBalance)}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
-              title={hideBalance ? "বাজেট দেখান" : "বাজেট লুকান"}
-            >
-              {hideBalance ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-
-          <div className="flex flex-col items-center justify-center text-center py-2">
-            <div className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center mb-3 shadow-inner",
-              summaryType === 'expense' ? "bg-red-50 dark:bg-red-500/10 text-red-500" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500"
-            )}>
-              <CheckCircle2 size={26} />
-            </div>
-
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-              {summaryType === 'expense' ? "You Paid (আমার সর্বমোট খরচ)" : "You Received (আমার সর্বমোট আয়)"}
+      {/* 4 Financial KPI Summary Cards (Total Income, Total Expense, Net Balance, Total Cash in Hand) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        
+        {/* Total Income Card */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-950/50 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+              মোট আয় (Income)
             </span>
-
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1.5 tracking-tight transition-all">
-              {hideBalance ? "•••• BDT" : formatCurrency(
-                filteredTransactions
-                  .filter(t => t.type === summaryType)
-                  .reduce((acc, t) => acc + t.amount, 0)
-              )}
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <TrendingUp size={15} />
+            </div>
+          </div>
+          <div className="mt-1.5 sm:mt-2">
+            <h3 className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-mono truncate">
+              {hideBalance ? "•••• BDT" : `+${formatCurrency(totalIncome)}`}
             </h3>
-
-            <p className="text-[10px] text-slate-400 mt-1">
-              Today: {format(new Date(), 'PPPP')}
+            <p className="text-[9.5px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+              {filteredTransactions.filter(t => t.type === 'income').length} টি আয়ের লেনদেন
             </p>
           </div>
+        </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-400 font-semibold">Active Filter Summary</span>
-              <span className="text-slate-700 dark:text-slate-300 font-bold font-mono">
-                {filteredTransactions.filter(t => t.type === summaryType).length} records listed
-              </span>
+        {/* Total Expense Card */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-red-100 dark:border-red-950/50 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+              মোট ব্যয় (Expense)
+            </span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+              <TrendingDown size={15} />
             </div>
           </div>
+          <div className="mt-1.5 sm:mt-2">
+            <h3 className="text-base sm:text-xl font-black text-red-600 dark:text-red-400 tracking-tight font-mono truncate">
+              {hideBalance ? "•••• BDT" : `-${formatCurrency(totalExpense)}`}
+            </h3>
+            <p className="text-[9.5px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+              {filteredTransactions.filter(t => t.type === 'expense').length} টি ব্যয়ের লেনদেন
+            </p>
+          </div>
+        </div>
 
-          <div className="mt-5">
+        {/* Net Savings / Balance Card */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-950/50 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+              নিট সঞ্চয়/ব্যালেন্স
+            </span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Scale size={15} />
+            </div>
+          </div>
+          <div className="mt-1.5 sm:mt-2">
+            <h3 className={cn(
+              "text-base sm:text-xl font-black tracking-tight font-mono truncate",
+              netPeriodBalance >= 0 ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"
+            )}>
+              {hideBalance ? "•••• BDT" : `${netPeriodBalance >= 0 ? '+' : ''}${formatCurrency(netPeriodBalance)}`}
+            </h3>
+            <p className="text-[9.5px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+              (মোট আয় - মোট ব্যয়)
+            </p>
+          </div>
+        </div>
+
+        {/* Total Available Account Balance Card (koto tk ache) */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-950/50 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+              মোট জমা তহবিল
+            </span>
             <button
-              type="button"
-              onClick={() => handleDownloadPeriodReceipt(summaryType)}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-950 py-3 rounded-2xl font-black transition-all active:scale-95 text-xs flex items-center justify-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-800"
+              onClick={() => setHideBalance(!hideBalance)}
+              className="p-1 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors"
+              title={hideBalance ? "ব্যালেন্স দেখান" : "লুকান"}
             >
-              <Download size={14} /> Download PDF Financial Report
+              {hideBalance ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <div className="mt-1.5 sm:mt-2">
+            <h3 className="text-base sm:text-xl font-black text-purple-600 dark:text-purple-400 tracking-tight font-mono truncate">
+              {hideBalance ? "•••• BDT" : formatCurrency(totalAccountsBalance)}
+            </h3>
+            <p className="text-[9.5px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+              {accounts.length} টি একাউন্টে মোট টাকা
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Filter and Date Control Panel */}
+      <Card className="p-4 sm:p-5 space-y-4">
+        
+        {/* Row 1: Filter Mode Selector Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-bold">
+            
+            {/* Month Mode Button */}
+            <button
+              onClick={() => setFilterPeriodMode('month')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5",
+                filterPeriodMode === 'month'
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              <Calendar size={14} />
+              <span>মাসিক ফিল্টার</span>
+            </button>
+
+            {/* Single Date Mode Button (e.g. 23rd) */}
+            <button
+              onClick={() => setFilterPeriodMode('day')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5",
+                filterPeriodMode === 'day'
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              <CalendarDays size={14} />
+              <span>নির্দিষ্ট তারিখ (যেমন ২৩ তারিখ)</span>
+            </button>
+
+            {/* Custom Range Button */}
+            <button
+              onClick={() => setFilterPeriodMode('range')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5",
+                filterPeriodMode === 'range'
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              <FileText size={14} />
+              <span>তারিখ রেঞ্জ</span>
+            </button>
+
+            {/* All Time Button */}
+            <button
+              onClick={() => setFilterPeriodMode('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all",
+                filterPeriodMode === 'all'
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              সব লেনদেন
             </button>
           </div>
 
-          <div className="flex flex-col items-center justify-center mt-5 pt-3 border-t border-dashed border-slate-200 dark:border-slate-800">
-            <span className="text-[9px] text-slate-400 tracking-widest uppercase font-bold">FinTrack Personal Finance</span>
+          {/* View Mode: Daily vs All List */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">
+            <button
+              onClick={() => setViewMode('daily')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1",
+                viewMode === 'daily'
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              <span>দৈনিক আয়-ব্যয় ছক</span>
+            </button>
+            <button
+              onClick={() => setViewMode('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1",
+                viewMode === 'all'
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              )}
+            >
+              <span>সকল তালিকা</span>
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Filters Section */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        {/* Row 2: Date Selector Controls depending on active mode */}
+        {filterPeriodMode === 'month' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (selectedMonth === 1) {
+                    setSelectedMonth(12);
+                    setSelectedYear(prev => prev - 1);
+                  } else {
+                    setSelectedMonth(prev => prev - 1);
+                  }
+                }}
+                className="p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                title="Previous Month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 outline-none"
+              >
+                {monthNamesEng.map((name, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {name} ({monthNamesBn[i]})
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 outline-none"
+              >
+                {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => {
+                  if (selectedMonth === 12) {
+                    setSelectedMonth(1);
+                    setSelectedYear(prev => prev + 1);
+                  } else {
+                    setSelectedMonth(prev => prev + 1);
+                  }
+                }}
+                className="p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                title="Next Month"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                const now = new Date();
+                setSelectedYear(now.getFullYear());
+                setSelectedMonth(now.getMonth() + 1);
+              }}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              চলতি মাস এ যান (Current Month)
+            </button>
+          </div>
+        )}
+
+        {filterPeriodMode === 'day' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase">তারিখ নির্বাচন:</span>
+              <input
+                type="date"
+                value={selectedSingleDate}
+                onChange={(e) => setSelectedSingleDate(e.target.value)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedSingleDate(format(new Date(), 'yyyy-MM-dd'))}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100"
+              >
+                আজকে (Today)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {filterPeriodMode === 'range' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase shrink-0">হতে (From):</span>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase shrink-0">পর্যন্ত (To):</span>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Row 3: Search and Type Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="বিবরণ, ক্যাটাগরি বা একাউন্ট দিয়ে খুঁজুন..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-xs sm:text-sm"
             />
           </div>
 
@@ -764,50 +1116,14 @@ export function Transactions() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as any)}
-              className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-xs sm:text-sm font-semibold"
             >
-              <option value="all">All Types</option>
-              <option value="income">Income Only</option>
-              <option value="expense">Expense Only</option>
+              <option value="all">সব লেনদেন (আয় ও ব্যয়)</option>
+              <option value="income">শুধুমাত্র আয় (Income Only)</option>
+              <option value="expense">শুধুমাত্র ব্যয় (Expense Only)</option>
             </select>
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 uppercase shrink-0">From</span>
-            <input
-              type="date"
-              value={filterStartDate}
-              onChange={(e) => setFilterStartDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 uppercase shrink-0">To</span>
-            <input
-              type="date"
-              value={filterEndDate}
-              onChange={(e) => setFilterEndDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-            />
-          </div>
         </div>
-        
-        {(searchTerm || filterType !== 'all' || filterStartDate || filterEndDate) && (
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setFilterType('all');
-                setFilterStartDate('');
-                setFilterEndDate('');
-              }}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
-            >
-              Clear all filters
-            </button>
-          </div>
-        )}
       </Card>
 
       <AnimatePresence>
@@ -1328,17 +1644,193 @@ export function Transactions() {
         )}
       </AnimatePresence>
 
-      <Card className="divide-y divide-slate-100 dark:divide-slate-800">
-        {filteredTransactions.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <List size={24} className="text-slate-400" />
-            </div>
-            <p className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">No transactions found</p>
-            <p className="text-sm">Add a new transaction to start tracking your expenses.</p>
+      {/* Main Transactions View */}
+      {filteredTransactions.length === 0 ? (
+        <Card className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <List size={24} className="text-slate-400" />
           </div>
-        ) : (
-          filteredTransactions.map(tx => {
+          <p className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">কোনো লেনদেন পাওয়া যায়নি</p>
+          <p className="text-sm">এই সময়কালে কোনো আয় বা ব্যয়ের রেকর্ড নেই। নতুন লেনদেন যোগ করুন।</p>
+        </Card>
+      ) : viewMode === 'daily' ? (
+        /* Daily Grouped View (Date-by-Date Income & Expense side-by-side) */
+        <div className="space-y-5">
+          {sortedDailyKeys.map(dateKey => {
+            const dayData = dailyGroupedMap[dateKey];
+            const dayNet = dayData.dayIncome - dayData.dayExpense;
+
+            return (
+              <div 
+                key={dateKey}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
+              >
+                {/* Daily Header Summary */}
+                <div className="p-3 sm:px-5 sm:py-3.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-black text-xs sm:text-sm flex items-center justify-center shrink-0">
+                      {format(dayData.date, 'dd')}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {format(dayData.date, 'dd MMMM yyyy, EEEE')}
+                      </h4>
+                      <p className="text-[9.5px] sm:text-[10px] text-slate-400">
+                        দৈনিক লেনদেন: {dayData.incomeList.length + dayData.expenseList.length} টি
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-mono font-bold">
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(dayData.dayIncome)}
+                    </span>
+                    <span className="text-red-600 dark:text-red-400">
+                      -{formatCurrency(dayData.dayExpense)}
+                    </span>
+                    <span className={cn(
+                      "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px]",
+                      dayNet >= 0
+                        ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300"
+                        : "bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300"
+                    )}>
+                      নিট: {dayNet >= 0 ? '+' : ''}{formatCurrency(dayNet)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Day Details: Income Column & Expense Column */}
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+                  
+                  {/* Income Section for this Day */}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ArrowUpRight size={14} />
+                        <span>আয় (Income - {dayData.incomeList.length})</span>
+                      </span>
+                      <span className="text-xs font-mono font-black text-emerald-600">
+                        +{formatCurrency(dayData.dayIncome)}
+                      </span>
+                    </div>
+
+                    {dayData.incomeList.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-2">কোনো আয় নেই</p>
+                    ) : (
+                      dayData.incomeList.map(tx => {
+                        const category = allCategories.find(c => c.id === tx.categoryId);
+                        const account = accounts.find(a => a.id === tx.accountId);
+
+                        return (
+                          <div
+                            key={tx.id}
+                            onClick={() => setActiveInvoiceTx(tx)}
+                            className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 border border-slate-150 dark:border-slate-800 transition-colors flex items-center justify-between gap-2 cursor-pointer group"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                                {category?.name || 'Income'}
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {account?.name} {tx.note && `• ${tx.note}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-bold text-xs font-mono text-emerald-600 dark:text-emerald-400">
+                                +{formatCurrency(tx.amount)}
+                              </span>
+                              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleEdit(tx); }}
+                                  className="p-1 text-slate-400 hover:text-indigo-500 rounded"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: tx.id, type: 'transaction', data: tx }); }}
+                                  className="p-1 text-slate-400 hover:text-red-500 rounded"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Expense Section for this Day */}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ArrowDownRight size={14} />
+                        <span>ব্যয় (Expense - {dayData.expenseList.length})</span>
+                      </span>
+                      <span className="text-xs font-mono font-black text-red-600">
+                        -{formatCurrency(dayData.dayExpense)}
+                      </span>
+                    </div>
+
+                    {dayData.expenseList.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-2">কোনো ব্যয় নেই</p>
+                    ) : (
+                      dayData.expenseList.map(tx => {
+                        const category = allCategories.find(c => c.id === tx.categoryId);
+                        const account = accounts.find(a => a.id === tx.accountId);
+
+                        return (
+                          <div
+                            key={tx.id}
+                            onClick={() => setActiveInvoiceTx(tx)}
+                            className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 hover:bg-red-50/50 dark:hover:bg-red-950/20 border border-slate-150 dark:border-slate-800 transition-colors flex items-center justify-between gap-2 cursor-pointer group"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                                {category?.name || 'Expense'}
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {account?.name} {tx.note && `• ${tx.note}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-bold text-xs font-mono text-red-600 dark:text-red-400">
+                                -{formatCurrency(tx.amount)}
+                              </span>
+                              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleEdit(tx); }}
+                                  className="p-1 text-slate-400 hover:text-indigo-500 rounded"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: tx.id, type: 'transaction', data: tx }); }}
+                                  className="p-1 text-slate-400 hover:text-red-500 rounded"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Chronological Standard Transaction List */
+        <Card className="divide-y divide-slate-100 dark:divide-slate-800">
+          {filteredTransactions.map(tx => {
             const category = allCategories.find(c => c.id === tx.categoryId);
             const account = accounts.find(a => a.id === tx.accountId);
             const isExpense = tx.type === 'expense';
@@ -1406,9 +1898,9 @@ export function Transactions() {
                 </div>
               </div>
             );
-          })
-        )}
-      </Card>
+          })}
+        </Card>
+      )}
 
       <ConfirmModal
         isOpen={!!deleteConfirm}

@@ -8,6 +8,7 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Accounts } from './components/Accounts';
 import { Transactions } from './components/Transactions';
+import { MonthlyLedger } from './components/MonthlyLedger';
 import { Analytics } from './components/Analytics';
 import { Debts } from './components/Debts';
 import { Notes } from './components/Notes';
@@ -32,9 +33,19 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'dashboard':
-        return <Dashboard onAddTransaction={() => setCurrentTab('transactions')} onNavigateToProfile={() => setCurrentTab('profile')} onNavigateToDebts={() => setCurrentTab('debts')} onNavigateToBazar={() => setCurrentTab('bazar')} />;
+        return (
+          <Dashboard 
+            onAddTransaction={() => setCurrentTab('transactions')} 
+            onNavigateToProfile={() => setCurrentTab('profile')} 
+            onNavigateToDebts={() => setCurrentTab('debts')} 
+            onNavigateToBazar={() => setCurrentTab('bazar')}
+            onNavigateToLedger={() => setCurrentTab('ledger')}
+          />
+        );
       case 'accounts':
         return <Accounts />;
+      case 'ledger':
+        return <MonthlyLedger onNavigateToTransactions={() => setCurrentTab('transactions')} />;
       case 'transactions':
         return <Transactions />;
       case 'analytics':
@@ -48,7 +59,15 @@ export default function App() {
       case 'profile':
         return <Profile />;
       default:
-        return <Dashboard onAddTransaction={() => setCurrentTab('transactions')} onNavigateToProfile={() => setCurrentTab('profile')} onNavigateToDebts={() => setCurrentTab('debts')} onNavigateToBazar={() => setCurrentTab('bazar')} />;
+        return (
+          <Dashboard 
+            onAddTransaction={() => setCurrentTab('transactions')} 
+            onNavigateToProfile={() => setCurrentTab('profile')} 
+            onNavigateToDebts={() => setCurrentTab('debts')} 
+            onNavigateToBazar={() => setCurrentTab('bazar')}
+            onNavigateToLedger={() => setCurrentTab('ledger')}
+          />
+        );
     }
   };
 

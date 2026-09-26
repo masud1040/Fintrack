@@ -4,8 +4,7 @@ import { formatCurrency } from './utils';
 import { generateHtmlPdf } from './htmlToPdfHelper';
 
 /**
- * Standard All-time Wealth & Debt Summary Report using robust HTML-to-PDF
- * Completely solves Bengali font shaping issues.
+ * Minimal & Professional Executive Overall Wealth & Debt Summary Report
  */
 export async function generatePDFReport(
   userId: number | string, 
@@ -16,6 +15,7 @@ export async function generatePDFReport(
   const transactions = await db.transactions.where('userId').equals(userId).reverse().sortBy('date');
   const categories = await db.categories.where('userId').equals(userId).toArray();
   const debts = await db.debts.where('userId').equals(userId).toArray();
+  const accounts = await db.accounts.where('userId').equals(userId).toArray();
 
   let totalIncome = 0;
   let totalExpense = 0;
@@ -28,112 +28,111 @@ export async function generatePDFReport(
   });
 
   const netBalance = totalIncome - totalExpense;
-  const recentTxs = transactions.slice(0, 15); // Show top 15 recent transactions for elegance
+  const currentTotalAccountBalance = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+  const recentTxs = transactions.slice(0, 20);
 
   const htmlContent = `
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+      * { box-sizing: border-box; }
     </style>
-    <div style="padding: 30px; background-color: #f8fafc; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #1e293b; max-width: 794px; margin: 0 auto; box-sizing: border-box;">
+    <div style="padding: 36px 40px; background-color: #ffffff; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #0f172a; max-width: 794px; margin: 0 auto; box-sizing: border-box; line-height: 1.5;">
       
-      <!-- top corporate header banner identical to the design -->
-      <div style="background-color: #1e3a8a; padding: 24px 40px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; box-sizing: border-box;">
+      <!-- Minimalist Executive Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <!-- Hexagon gold emblem -->
-          <div style="width: 32px; height: 32px; background-color: #facc15; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 4px; border: 3px solid #1e3a8a; box-sizing: border-box;">
-            <div style="width: 14px; height: 14px; border: 3px solid #ffffff; transform: rotate(45deg);"></div>
+          <div style="width: 38px; height: 38px; background-color: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 16px; letter-spacing: -0.05em;">
+            FT
           </div>
           <div>
-            <div style="font-size: 16px; font-weight: 800; letter-spacing: 0.05em; line-height: 1.1; font-family: 'Inter', sans-serif;">FINTRACK</div>
-            <div style="font-size: 10px; opacity: 0.8; letter-spacing: 0.02em; font-family: 'Inter', sans-serif;">Corporation</div>
+            <div style="font-size: 18px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a;">FinTrack</div>
+            <div style="font-size: 10.5px; color: #64748b; font-weight: 500;">Financial Ledger & Wealth Management</div>
           </div>
         </div>
         
-        <!-- Classic Swiss grid dot elements identical to the design image -->
-        <div style="display: flex; flex-direction: column; gap: 4px; opacity: 0.6;">
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
+        <div style="text-align: right;">
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">PORTFOLIO SUMMARY</div>
+          <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">সার্বিক আর্থিক স্থিতি ও বিবরণী</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Issued: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}</div>
         </div>
       </div>
 
-      <!-- Main report Title -->
-      <div style="padding: 28px 40px 10px 40px;">
-        <h1 style="color: #d97706; font-size: 32px; font-weight: 900; margin: 0 0 4px 0; letter-spacing: -0.02em;">Overall Portfolio Summary</h1>
-        <p style="font-size: 14px; color: #64748b; margin: 0 0 16px 0; font-weight: 500;">আর্থিক পোর্টফোলিও সামগ্রিক বিবরণী প্রতিবেদন</p>
-      </div>
-
-      <!-- Prepared Information box matching the layout of the reference image -->
-      <div style="margin: 0 40px 24px 40px; padding: 18px 24px; background-color: #f1f5f9; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1.5px solid #e2e8f0; font-size: 13px;">
-        <div style="line-height: 1.5;">
-          <p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Prepared by:</strong> ${userName}</p>
-          ${phoneNumber ? `<p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Phone (ফোন):</strong> ${phoneNumber}</p>` : ''}
-          ${companyName ? `<p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Company/Dept (কোম্পানি/শাখা):</strong> ${companyName}</p>` : ''}
-          <p style="margin: 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Department:</strong> Personal Finance Wealth Report</p>
+      <!-- Account Holder & Metadata Box -->
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 24px;">
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Account Holder / বিবরণী প্রাপক</div>
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px;">${userName}</div>
+          ${phoneNumber ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">ফোন: ${phoneNumber}</div>` : ''}
+          ${companyName ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">প্রতিষ্ঠান: ${companyName}</div>` : ''}
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 14px; font-weight: 700; color: #2563eb;">
-            <span style="color: #1e3a8a;">Period:</span> All-Time Summary
-          </p>
-          <p style="margin: 4px 0 0 0; font-size: 10px; color: #64748b;">Report Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Reporting Period</div>
+          <div style="font-size: 13px; font-weight: 800; color: #0f172a; margin-top: 2px;">All-Time Cumulative Summary</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 1px;">সর্বমোট লেনদেন: ${transactions.length} টি</div>
         </div>
       </div>
 
-      <!-- Gold Circle Bullets for Sections -->
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 12px 40px; font-size: 15px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> 
-        Overview Balance (আর্থিক স্থিতি) :
+      <!-- Executive KPI Cards -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;">
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মোট আয় (Income)</div>
+          <div style="font-size: 16px; font-weight: 800; color: #059669; margin-top: 4px; font-family: 'Inter', sans-serif;">+${formatCurrency(totalIncome)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">সর্বমোট সংগৃহীত আয়</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মোট ব্যয় (Expense)</div>
+          <div style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: 'Inter', sans-serif;">-${formatCurrency(totalExpense)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">সর্বমোট মোট খরচ</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">নিট উদ্বৃত্ত (Net Flow)</div>
+          <div style="font-size: 16px; font-weight: 800; color: ${netBalance >= 0 ? '#0f172a' : '#dc2626'}; margin-top: 4px; font-family: 'Inter', sans-serif;">${netBalance >= 0 ? '+' : ''}${formatCurrency(netBalance)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">আয় - ব্যয় স্থিতি</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">বর্তমান মোট তহবিল</div>
+          <div style="font-size: 16px; font-weight: 800; color: #2563eb; margin-top: 4px; font-family: 'Inter', sans-serif;">${formatCurrency(currentTotalAccountBalance)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">হিসাবসমূহের স্থিতি</div>
+        </div>
       </div>
 
-      <!-- Quick stats tables -->
-      <div style="margin: 0 40px 24px 40px; display: grid; grid-template-cols: repeat(3, 1fr); gap: 16px; width: calc(100% - 80px);">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+      <!-- Recent Transactions Section -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em;">
+            Recent Transactions (সাম্প্রতিক লেনদেনসমূহ)
+          </div>
+          <div style="font-size: 10.5px; color: #64748b;">সর্বশেষ ২০টি রেকর্ড</div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
           <thead>
-            <tr style="background-color: #e2e8f0; text-align: left; font-weight: bold; color: #1e293b;">
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1; text-align: center;">Total Income (মোট আয়)</th>
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1; text-align: center;">Total Expenses (মোট ব্যয়)</th>
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1; text-align: center;">Net Balance (নিট অবশিষ্ট)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="padding: 12px; font-weight: 700; text-align: center; color: #059669; font-size: 14px; border: 1px solid #e2e8f0;">${formatCurrency(totalIncome)}</td>
-              <td style="padding: 12px; font-weight: 700; text-align: center; color: #dc2626; font-size: 14px; border: 1px solid #e2e8f0;">${formatCurrency(totalExpense)}</td>
-              <td style="padding: 12px; font-weight: 900; text-align: center; color: ${netBalance >= 0 ? '#1e3a8a' : '#991b1b'}; font-size: 14px; border: 1px solid #e2e8f0; background-color: #fef08a;">${formatCurrency(netBalance)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 12px 40px; font-size: 15px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> 
-        Recent Transactions Details (আয় ও ব্যয় তালিকা) :
-      </div>
-
-      <!-- Transaction details table matching the requested Corporate format -->
-      <div style="margin: 0 40px 24px 40px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
-          <thead>
-            <tr style="background-color: #cbd5e1; text-align: left; color: #0f172a; font-weight: bold;">
-              <th style="padding: 10px 12px; width: 40px; text-align: center; border: 1px solid #cbd5e1;">No.</th>
-              <th style="padding: 10px 12px; width: 90px; border: 1px solid #cbd5e1;">Date (তারিখ)</th>
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1;">Description / Note (বিবরণ)</th>
-              <th style="padding: 10px 12px; width: 110px; border: 1px solid #cbd5e1;">Category (ক্যাটাগরি)</th>
-              <th style="padding: 10px 12px; width: 130px; text-align: right; border: 1px solid #cbd5e1;">Amount (টাকা)</th>
+            <tr style="background-color: #f8fafc; color: #475569; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+              <th style="padding: 10px 12px; width: 40px; text-align: center;">SL</th>
+              <th style="padding: 10px 12px; width: 95px;">Date (তারিখ)</th>
+              <th style="padding: 10px 12px;">Description & Note (বিবরণ ও নোট)</th>
+              <th style="padding: 10px 12px; width: 130px;">Category (ক্যাটাগরি)</th>
+              <th style="padding: 10px 12px; width: 120px; text-align: right;">Amount (টাকা)</th>
             </tr>
           </thead>
           <tbody>
             ${recentTxs.map((tx, idx) => {
               const cat = categories.find(c => c.id === tx.categoryId);
               const isInc = tx.type === 'income';
-              const rowBg = idx % 2 === 1 ? '#f8fafc' : '#ffffff';
               return `
-                <tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 10px; text-align: center; border-right: 1px solid #e2e8f0; color: #64748b;">${idx + 1}.</td>
-                  <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${format(new Date(tx.date), 'dd MMM yyyy')}</td>
-                  <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: 500; font-family: 'Hind Siliguri', 'Inter', sans-serif;">${tx.note || '-'}</td>
-                  <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-family: 'Hind Siliguri', 'Inter', sans-serif;">${cat?.name || 'General'}</td>
-                  <td style="padding: 10px; text-align: right; font-weight: 700; color: ${isInc ? '#059669' : '#dc2626'};">
+                <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 1 ? '#fafafa' : '#ffffff'};">
+                  <td style="padding: 9px 12px; text-align: center; color: #94a3b8; font-size: 10.5px;">${idx + 1}</td>
+                  <td style="padding: 9px 12px; color: #475569; font-weight: 500;">${format(new Date(tx.date), 'dd MMM yyyy')}</td>
+                  <td style="padding: 9px 12px; color: #0f172a; font-weight: 500; font-family: 'Hind Siliguri', sans-serif;">${tx.note || '-'}</td>
+                  <td style="padding: 9px 12px;">
+                    <span style="display: inline-block; padding: 2px 6px; background-color: #f1f5f9; color: #475569; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">
+                      ${cat?.name || 'General'}
+                    </span>
+                  </td>
+                  <td style="padding: 9px 12px; text-align: right; font-weight: 700; color: ${isInc ? '#059669' : '#dc2626'}; font-family: 'Inter', sans-serif;">
                     ${isInc ? '+' : '-'}${formatCurrency(tx.amount)}
                   </td>
                 </tr>
@@ -141,33 +140,31 @@ export async function generatePDFReport(
             }).join('')}
             ${recentTxs.length === 0 ? `
               <tr>
-                <td colspan="5" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">No transactions recorded.</td>
+                <td colspan="5" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">কোন লেনদেন পাওয়া যায়নি।</td>
               </tr>
             ` : ''}
-            <!-- Bottom total strip in Gold matching the reference design -->
-            <tr style="background-color: #facc15; font-weight: bold; font-size: 12px; color: #000000; border-top: 2.5px solid #d97706;">
-              <td colspan="4" style="padding: 12px; text-transform: uppercase;">Total Active Ledger Volume (সর্বমোট লেনদেন ভলিউম)</td>
-              <td style="padding: 12px; text-align: right;">${formatCurrency(totalIncome + totalExpense)}</td>
-            </tr>
           </tbody>
         </table>
       </div>
 
+      <!-- Debts and Liabilities Section -->
       ${debts.length > 0 ? `
-        <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 12px 40px; font-size: 15px; font-weight: 700; color: #0f172a;">
-          <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> 
-          Debts & Loans Summary (দেনা-পাওনা বিবরণী) :
-        </div>
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em;">
+              Debts & Liabilities Summary (দেনা-পাওনা বিবরণী)
+            </div>
+            <div style="font-size: 10.5px; color: #64748b;">মোট ${debts.length} টি এন্ট্রি</div>
+          </div>
 
-        <div style="margin: 0 40px 24px 40px;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
             <thead>
-              <tr style="background-color: #cbd5e1; text-align: left; color: #0f172a; font-weight: bold;">
-                <th style="padding: 10px 12px; width: 40px; text-align: center; border: 1px solid #cbd5e1;">No.</th>
-                <th style="padding: 10px 12px; border: 1px solid #cbd5e1;">Person (ব্যক্তি)</th>
-                <th style="padding: 10px 12px; border: 1px solid #cbd5e1;">Type (ধরণ)</th>
-                <th style="padding: 10px 12px; border: 1px solid #cbd5e1;">Status (অবস্থা)</th>
-                <th style="padding: 10px 12px; width: 140px; text-align: right; border: 1px solid #cbd5e1;">Amount (টাকার পরিমাণ)</th>
+              <tr style="background-color: #f8fafc; color: #475569; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+                <th style="padding: 10px 12px; width: 40px; text-align: center;">SL</th>
+                <th style="padding: 10px 12px;">Person (ব্যক্তি / প্রতিষ্ঠান)</th>
+                <th style="padding: 10px 12px; width: 130px;">Type (ধরণ)</th>
+                <th style="padding: 10px 12px; width: 110px;">Status (অবস্থা)</th>
+                <th style="padding: 10px 12px; width: 130px; text-align: right;">Amount (টাকা)</th>
               </tr>
             </thead>
             <tbody>
@@ -175,16 +172,18 @@ export async function generatePDFReport(
                 const isReceivable = d.type === 'receivable';
                 const isPaid = d.status === 'paid';
                 return `
-                  <tr style="background-color: ${index % 2 === 1 ? '#f8fafc' : '#ffffff'}; border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 10px; text-align: center; border-right: 1px solid #e2e8f0; color: #64748b;">${index + 1}.</td>
-                    <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: 600; font-family: 'Hind Siliguri', 'Inter', sans-serif;">${d.person}</td>
-                    <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: 500;">
-                      ${isReceivable ? '<span style="color: #2563eb;">RECEIVABLE (পাবো)</span>' : '<span style="color: #e11d48;">PAYABLE (দেব)</span>'}
+                  <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${index % 2 === 1 ? '#fafafa' : '#ffffff'};">
+                    <td style="padding: 9px 12px; text-align: center; color: #94a3b8; font-size: 10.5px;">${index + 1}</td>
+                    <td style="padding: 9px 12px; font-weight: 600; color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${d.person}</td>
+                    <td style="padding: 9px 12px;">
+                      <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background-color: ${isReceivable ? '#eff6ff' : '#fef2f2'}; color: ${isReceivable ? '#1d4ed8' : '#b91c1c'};">
+                        ${isReceivable ? 'পাবো (Receivable)' : 'দেব (Payable)'}
+                      </span>
                     </td>
-                    <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: 600; color: ${isPaid ? '#059669' : '#dc2626'}">
-                      ${isPaid ? 'PAID (পরিশোধিত)' : 'UNPAID (বাকি)'}
+                    <td style="padding: 9px 12px; font-weight: 600; font-size: 10.5px; color: ${isPaid ? '#059669' : '#d97706'};">
+                      ${isPaid ? 'পরিশোধিত (Paid)' : 'বাকি (Unpaid)'}
                     </td>
-                    <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(d.amount)}</td>
+                    <td style="padding: 9px 12px; text-align: right; font-weight: 700; color: #0f172a; font-family: 'Inter', sans-serif;">${formatCurrency(d.amount)}</td>
                   </tr>
                 `;
               }).join('')}
@@ -193,22 +192,16 @@ export async function generatePDFReport(
         </div>
       ` : ''}
 
-      <!-- Note Section identical layout matching reference image -->
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 8px 40px; font-size: 14px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> Note :
-      </div>
-      <div style="margin: 0 40px 32px 40px; font-size: 12px; color: #475569; font-family: 'Hind Siliguri', 'Inter', sans-serif; line-height: 1.6;">
-        This automated statement contains an all-time summarized report of your assets, liabilities, and income flow records. Rest assured that your transactions are securely serialized locally on your mobile interface ledger structure.
-        <br />
-         এই বিবরণীতে আপনার অল-টাইম আয়, ব্যয়, সম্পদ এবং দায়সমূহের নিয়মিত হিসাব অন্তর্ভুক্ত করা হয়েছে। এটি সম্পূর্ণ সুরক্ষিত এবং শুধুমাত্র আপনার ডিভাইসের লোকাল স্টোরেজে সংরক্ষিত।
-      </div>
-
-      <!-- Bottom footer styling with a real image curved segment in cyan/accent tone -->
-      <div style="position: relative; margin-top: 36px; padding: 24px 40px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8; box-sizing: border-box;">
-        <div>FinTrack Ledger System © 2026 • Terms & Privacy Assurance</div>
-        <div>Page 1 of 1</div>
-        <!-- Right corner circular curve match graphic -->
-        <div style="position: absolute; bottom: 0; right: 0; width: 60px; height: 60px; border-top-left-radius: 100%; border: 12px solid #3b82f6; border-right: none; border-bottom: none; opacity: 0.25;"></div>
+      <!-- Clean Minimal Footer -->
+      <div style="margin-top: 36px; padding-top: 18px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10.5px; color: #94a3b8;">
+        <div>
+          <div style="font-weight: 600; color: #64748b;">FinTrack Wealth Platform • Confidential Statement</div>
+          <div style="margin-top: 2px;">Document Hash: BDT-${format(new Date(), 'yyyyMMdd')}-SUM-REPORT</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="color: #64748b; font-weight: 600;">Verified Digital Ledger Record</div>
+          <div style="margin-top: 2px;">Page 1 of 1</div>
+        </div>
       </div>
 
     </div>
@@ -219,8 +212,7 @@ export async function generatePDFReport(
 }
 
 /**
- * Highly Polished, High-Fidelity Corporate Monthly Financial Statement Report creator
- * Matches the reference image provided with beautiful Bengali font rendering using browser canvas proxies.
+ * Highly Polished, Minimalist & Professional Monthly Financial Statement
  */
 export async function generateMonthlyPDFReport(
   userId: number | string,
@@ -231,7 +223,6 @@ export async function generateMonthlyPDFReport(
   phoneNumber?: string,
   companyName?: string
 ) {
-  // Retrieve target month's transactions
   const allTransactions = await db.transactions.where('userId').equals(userId).toArray();
   const filteredTransactions = allTransactions.filter(tx => {
     const txDate = new Date(tx.date);
@@ -239,6 +230,7 @@ export async function generateMonthlyPDFReport(
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const categories = await db.categories.where('userId').equals(userId).toArray();
+  const accounts = await db.accounts.where('userId').equals(userId).toArray();
 
   const incomeItems = filteredTransactions.filter(tx => tx.type === 'income');
   const expenseItems = filteredTransactions.filter(tx => tx.type === 'expense');
@@ -250,8 +242,8 @@ export async function generateMonthlyPDFReport(
   expenseItems.forEach(tx => { totalExpense += tx.amount; });
 
   const netBalance = totalIncome - totalExpense;
+  const currentTotalAccountBalance = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
 
-  // Render Month names in Bengali & English
   const monthNamesEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const monthNamesBng = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
   const periodStr = `${monthNamesEng[month - 1]} ${year} (${monthNamesBng[month - 1]} ${year})`;
@@ -259,168 +251,739 @@ export async function generateMonthlyPDFReport(
   const htmlContent = `
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+      * { box-sizing: border-box; }
     </style>
-    <div style="padding: 30px; background-color: #f8fafc; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #1e293b; max-width: 794px; margin: 0 auto; box-sizing: border-box;">
+    <div style="padding: 36px 40px; background-color: #ffffff; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #0f172a; max-width: 794px; margin: 0 auto; box-sizing: border-box; line-height: 1.5;">
       
-      <!-- Top banner identical to FINANCES Corporation from reference image -->
-      <div style="background-color: #1e3a8a; padding: 24px 40px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; box-sizing: border-box;">
+      <!-- Minimalist Executive Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <!-- Hexagon Gold Brand Symbol -->
-          <div style="width: 32px; height: 32px; background-color: #facc15; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 4px; border: 3px solid #1e3a8a; box-sizing: border-box;">
-            <div style="width: 14px; height: 14px; border: 3px solid #ffffff; transform: rotate(45deg);"></div>
+          <div style="width: 38px; height: 38px; background-color: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 16px; letter-spacing: -0.05em;">
+            FT
           </div>
           <div>
-            <div style="font-size: 16px; font-weight: 800; letter-spacing: 0.05em; line-height: 1.1; font-family: 'Inter', sans-serif;">FINTRACK</div>
-            <div style="font-size: 10px; opacity: 0.8; letter-spacing: 0.02em; font-family: 'Inter', sans-serif;">Corporation</div>
+            <div style="font-size: 18px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a;">FinTrack</div>
+            <div style="font-size: 10.5px; color: #64748b; font-weight: 500;">Financial Statement & Account Audit</div>
           </div>
         </div>
         
-        <!-- Standard Decorative blue-gray Swiss Grid Dots -->
-        <div style="display: flex; flex-direction: column; gap: 4px; opacity: 0.6;">
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
-          <div style="display: flex; gap: 4px;"><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div><div style="width: 4px; height: 4px; background-color: #ffffff; border-radius: 50%;"></div></div>
+        <div style="text-align: right;">
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">MONTHLY STATEMENT</div>
+          <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">মাসিক অর্থনৈতিক আয়-ব্যয় প্রতিবেদন</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Issued: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}</div>
         </div>
       </div>
 
-      <!-- Heading matching the styling: Income Expense Report in yellow/gold accent -->
-      <div style="padding: 28px 40px 10px 40px;">
-        <h1 style="color: #d97706; font-size: 32px; font-weight: 900; margin: 0 0 4px 0; letter-spacing: -0.02em; font-family: 'Inter', sans-serif;">Income Expense Report</h1>
-        <p style="font-size: 14px; color: #64748b; margin: 0 0 16px 0; font-weight: 500;">মাসিক অর্থনৈতিক আয় ও ব্যয় প্রতিবেদন</p>
-      </div>
-
-      <!-- Prepared Information box matching the layout of reference image -->
-      <div style="margin: 0 40px 24px 40px; padding: 18px 24px; background-color: #f1f5f9; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1.5px solid #e2e8f0; font-size: 13px;">
-        <div style="line-height: 1.5;">
-          <p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Prepared by:</strong> ${userName}</p>
-          ${phoneNumber ? `<p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Phone (ফোন):</strong> ${phoneNumber}</p>` : ''}
-          ${companyName ? `<p style="margin: 0 0 4px 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Company/Dept (কোম্পানি/শাখা):</strong> ${companyName}</p>` : ''}
-          <p style="margin: 0; color: #1e293b;"><strong style="color: #0f172a; font-weight: 700;">Department:</strong> Finance Ledger</p>
+      <!-- Account Holder & Metadata Box -->
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 24px;">
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Account Holder / হিসাবধারী</div>
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px;">${userName}</div>
+          ${userEmail ? `<div style="font-size: 11px; color: #64748b; margin-top: 1px;">${userEmail}</div>` : ''}
+          ${phoneNumber ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">ফোন: ${phoneNumber}</div>` : ''}
+          ${companyName ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">প্রতিষ্ঠান: ${companyName}</div>` : ''}
         </div>
         <div style="text-align: right;">
-          <p style="margin: 0; font-size: 14px; font-weight: 700; color: #2563eb;">
-            <span style="color: #1e3a8a;">Period:</span> ${periodStr}
-          </p>
-          <p style="margin: 4px 0 0 0; font-size: 10px; color: #64748b;">Report Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Statement Period / সময়কাল</div>
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; font-family: 'Hind Siliguri', sans-serif;">${periodStr}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 1px;">মোট লেনদেন: ${filteredTransactions.length} টি</div>
         </div>
       </div>
 
-      <!-- Gold circle Bullet points identical to image -->
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 12px 40px; font-size: 15px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> 
-        Income Details (আয় বিবরণী) :
+      <!-- 4 Highlight KPI Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;">
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মাসের মোট আয়</div>
+          <div style="font-size: 16px; font-weight: 800; color: #059669; margin-top: 4px; font-family: 'Inter', sans-serif;">+${formatCurrency(totalIncome)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${incomeItems.length} টি আয়ের উৎস</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মাসের মোট ব্যয়</div>
+          <div style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: 'Inter', sans-serif;">-${formatCurrency(totalExpense)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${expenseItems.length} টি ব্যয়ের খাত</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">মাসের নিট সঞ্চয় / স্থিতি</div>
+          <div style="font-size: 16px; font-weight: 800; color: ${netBalance >= 0 ? '#0f172a' : '#dc2626'}; margin-top: 4px; font-family: 'Inter', sans-serif;">${netBalance >= 0 ? '+' : ''}${formatCurrency(netBalance)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">আয় - ব্যয় উদ্বৃত্ত</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">বর্তমান মোট তহবিল</div>
+          <div style="font-size: 16px; font-weight: 800; color: #2563eb; margin-top: 4px; font-family: 'Inter', sans-serif;">${formatCurrency(currentTotalAccountBalance)}</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">সব একাউন্টে জমা টাকা</div>
+        </div>
       </div>
 
-      <!-- Income table from image -->
-      <div style="margin: 0 40px 24px 40px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+      <!-- Income Table Section -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #059669;"></span>
+            Income Breakdown (আয়ের খাত ও বিবরণী)
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #059669;">মোট: +${formatCurrency(totalIncome)}</div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
           <thead>
-            <tr style="background-color: #ebd39e; text-align: left; color: #0f172a; font-weight: bold; font-family: 'Inter', sans-serif;">
-              <th style="padding: 10px 12px; width: 60px; text-align: center; border: 1px solid #cbd5e1; background-color: #e2e8f0;">No.</th>
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1; background-color: #e2e8f0;">Income Description</th>
-              <th style="padding: 10px 12px; width: 140px; text-align: right; border: 1px solid #cbd5e1; background-color: #e2e8f0;">Amount</th>
+            <tr style="background-color: #f8fafc; color: #475569; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+              <th style="padding: 9px 12px; width: 40px; text-align: center;">SL</th>
+              <th style="padding: 9px 12px; width: 90px;">Date (তারিখ)</th>
+              <th style="padding: 9px 12px; width: 140px;">Category (ক্যাটাগরি)</th>
+              <th style="padding: 9px 12px;">Description / Note (বিবরণ ও নোট)</th>
+              <th style="padding: 9px 12px; width: 120px; text-align: right;">Amount (টাকা)</th>
             </tr>
           </thead>
           <tbody>
             ${incomeItems.map((tx, idx) => {
               const cat = categories.find(c => c.id === tx.categoryId);
               return `
-                <tr style="background-color: ${idx % 2 === 1 ? '#f8fafc' : '#ffffff'}; border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 10px; text-align: center; border-right: 1px solid #e2e8f0; color: #64748b;">${idx + 1}.</td>
-                  <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-family: 'Hind Siliguri', 'Inter', sans-serif; font-weight: 500;">
-                    ${cat?.name || 'Uncategorized'} ${tx.note ? ` - <span style="font-size: 11px; color:#64748b; font-weight: normal;">${tx.note}</span>` : ''}
-                    <span style="font-size: 10px; color: #94a3b8; font-weight: 300; margin-left: 8px;">(${format(new Date(tx.date), 'dd MMM')})</span>
+                <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 1 ? '#fafafa' : '#ffffff'};">
+                  <td style="padding: 8px 12px; text-align: center; color: #94a3b8; font-size: 10.5px;">${idx + 1}</td>
+                  <td style="padding: 8px 12px; color: #475569; font-weight: 500;">${format(new Date(tx.date), 'dd MMM yyyy')}</td>
+                  <td style="padding: 8px 12px;">
+                    <span style="display: inline-block; padding: 2px 6px; background-color: #ecfdf5; color: #065f46; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">
+                      ${cat?.name || 'Income'}
+                    </span>
                   </td>
-                  <td style="padding: 10px; text-align: right; font-weight: 700; color: #0f172a;">${formatCurrency(tx.amount)}</td>
+                  <td style="padding: 8px 12px; color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${tx.note || '-'}</td>
+                  <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #059669; font-family: 'Inter', sans-serif;">+${formatCurrency(tx.amount)}</td>
                 </tr>
               `;
             }).join('')}
             ${incomeItems.length === 0 ? `
               <tr>
-                <td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8; font-style: italic;">No income transactions recorded for this period. (কোন আয় পাওয়া যায়নি)</td>
+                <td colspan="5" style="padding: 18px; text-align: center; color: #94a3b8; font-style: italic;">এই মাসে কোন আয়ের লেনদেন পাওয়া যায়নি।</td>
               </tr>
             ` : ''}
-            <!-- Bottom SOLID yellow total strip exactly like the image -->
-            <tr style="background-color: #facc15; font-weight: 800; font-size: 13px; color: #000000; border-top: 2px solid #d97706;">
-              <td colspan="2" style="padding: 12px; text-transform: uppercase; font-family: 'Inter', sans-serif;">TOTAL INCOME (সর্বমোট আয়)</td>
-              <td style="padding: 12px; text-align: right; font-family: 'Inter', sans-serif;">${formatCurrency(totalIncome)}</td>
+            <tr style="background-color: #f8fafc; border-top: 1.5px solid #e2e8f0; font-weight: 800;">
+              <td colspan="4" style="padding: 10px 12px; text-transform: uppercase; font-size: 10.5px; color: #475569;">SUBTOTAL INCOME (মোট আয়)</td>
+              <td style="padding: 10px 12px; text-align: right; color: #059669; font-size: 12px; font-family: 'Inter', sans-serif;">+${formatCurrency(totalIncome)}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Expense details header gold circle -->
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 12px 40px; font-size: 15px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> 
-        Expense Details (ব্যয় বিবরণী) :
-      </div>
+      <!-- Expense Table Section -->
+      <div style="margin-bottom: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #dc2626;"></span>
+            Expense Breakdown (ব্যয়ের খাত ও বিবরণী)
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #dc2626;">মোট: -${formatCurrency(totalExpense)}</div>
+        </div>
 
-      <!-- Expense table from image -->
-      <div style="margin: 0 40px 24px 40px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
           <thead>
-            <tr style="background-color: #ebd39e; text-align: left; color: #0f172a; font-weight: bold; font-family: 'Inter', sans-serif;">
-              <th style="padding: 10px 12px; width: 60px; text-align: center; border: 1px solid #cbd5e1; background-color: #e2e8f0;">No.</th>
-              <th style="padding: 10px 12px; border: 1px solid #cbd5e1; background-color: #e2e8f0;">Expense Description</th>
-              <th style="padding: 10px 12px; width: 140px; text-align: right; border: 1px solid #cbd5e1; background-color: #e2e8f0;">Amount</th>
+            <tr style="background-color: #f8fafc; color: #475569; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+              <th style="padding: 9px 12px; width: 40px; text-align: center;">SL</th>
+              <th style="padding: 9px 12px; width: 90px;">Date (তারিখ)</th>
+              <th style="padding: 9px 12px; width: 140px;">Category (ক্যাটাগরি)</th>
+              <th style="padding: 9px 12px;">Description / Note (বিবরণ ও নোট)</th>
+              <th style="padding: 9px 12px; width: 120px; text-align: right;">Amount (টাকা)</th>
             </tr>
           </thead>
           <tbody>
             ${expenseItems.map((tx, idx) => {
               const cat = categories.find(c => c.id === tx.categoryId);
               return `
-                <tr style="background-color: ${idx % 2 === 1 ? '#f8fafc' : '#ffffff'}; border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 10px; text-align: center; border-right: 1px solid #e2e8f0; color: #64748b;">${idx + 1}.</td>
-                  <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-family: 'Hind Siliguri', 'Inter', sans-serif; font-weight: 500;">
-                    ${cat?.name || 'Uncategorized'} ${tx.note ? ` - <span style="font-size: 11px; color:#64748b; font-weight: normal;">${tx.note}</span>` : ''}
-                    <span style="font-size: 10px; color: #94a3b8; font-weight: 300; margin-left: 8px;">(${format(new Date(tx.date), 'dd MMM')})</span>
+                <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 1 ? '#fafafa' : '#ffffff'};">
+                  <td style="padding: 8px 12px; text-align: center; color: #94a3b8; font-size: 10.5px;">${idx + 1}</td>
+                  <td style="padding: 8px 12px; color: #475569; font-weight: 500;">${format(new Date(tx.date), 'dd MMM yyyy')}</td>
+                  <td style="padding: 8px 12px;">
+                    <span style="display: inline-block; padding: 2px 6px; background-color: #fef2f2; color: #991b1b; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">
+                      ${cat?.name || 'Expense'}
+                    </span>
                   </td>
-                  <td style="padding: 10px; text-align: right; font-weight: 700; color: #0f172a;">${formatCurrency(tx.amount)}</td>
+                  <td style="padding: 8px 12px; color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${tx.note || '-'}</td>
+                  <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #dc2626; font-family: 'Inter', sans-serif;">-${formatCurrency(tx.amount)}</td>
                 </tr>
               `;
             }).join('')}
             ${expenseItems.length === 0 ? `
               <tr>
-                <td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8; font-style: italic;">No expense transactions recorded for this period. (কোন ব্যয় পাওয়া যায়নি)</td>
+                <td colspan="5" style="padding: 18px; text-align: center; color: #94a3b8; font-style: italic;">এই মাসে কোন ব্যয়ের লেনদেন পাওয়া যায়নি।</td>
               </tr>
             ` : ''}
-            <!-- Bottom SOLID yellow total strip exactly like the image -->
-            <tr style="background-color: #facc15; font-weight: 800; font-size: 13px; color: #000000; border-top: 2px solid #d97706;">
-              <td colspan="2" style="padding: 12px; text-transform: uppercase; font-family: 'Inter', sans-serif;">TOTAL EXPENSE (সর্বমোট ব্যয়)</td>
-              <td style="padding: 12px; text-align: right; font-family: 'Inter', sans-serif;">${formatCurrency(totalExpense)}</td>
+            <tr style="background-color: #f8fafc; border-top: 1.5px solid #e2e8f0; font-weight: 800;">
+              <td colspan="4" style="padding: 10px 12px; text-transform: uppercase; font-size: 10.5px; color: #475569;">SUBTOTAL EXPENSE (মোট ব্যয়)</td>
+              <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-size: 12px; font-family: 'Inter', sans-serif;">-${formatCurrency(totalExpense)}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Net profit / balance stats -->
-      <div style="margin: 24px 40px; padding: 12px 20px; background-color: ${netBalance >= 0 ? '#ecfdf5' : '#fef2f2'}; border: 1.5px solid ${netBalance >= 0 ? '#a7f3d0' : '#fecaca'}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
-        <span style="font-weight: 700; color: ${netBalance >= 0 ? '#047857' : '#b91c1c'}">NET BALANCE / PROFIT (নিট মুনাফা / অবশিষ্ট) :</span>
-        <span style="font-size: 15px; font-weight: 900; color: ${netBalance >= 0 ? '#065f46' : '#991b1b'}">${formatCurrency(netBalance)}</span>
-      </div>
-
-      <!-- Note Section from image -->
-      <div style="display: flex; align-items: center; gap: 8px; margin: 24px 40px 8px 40px; font-size: 14px; font-weight: 700; color: #0f172a;">
-        <span style="width: 10px; height: 10px; border-radius: 50%; background-color: #d97706; display: inline-block;"></span> Note :
-      </div>
-      <div style="margin: 0 40px 32px 40px; font-size: 12px; color: #475569; font-family: 'Hind Siliguri', 'Inter', sans-serif; line-height: 1.6;">
-        This financial report analyzes the income, expenses, and net profit for the specified period. Generated securely on FinTrack Ledger.
-        <br />
-        এই আর্থিক প্রতিবেদনটি উপরোক্ত নির্দিষ্ট সময়ের আয়, ব্যয় এবং নিট অবশিষ্ট মুনাফা বিশ্লেষণ করে। বিবরণীটি অত্যন্ত নির্ভুলভাবে আপনার অ্যাকাউন্ট ডেটা ভিত্তি করে প্রস্তুত করা হয়েছে।
-      </div>
-
-      <!-- Bottom footer graphics with curved corner segments like the template image -->
-      <div style="position: relative; margin-top: 36px; padding: 24px 40px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8; box-sizing: border-box;">
-        <div>FinTrack Ledger System © 2026 • Generation Code: FX-68-SEC</div>
-        <div>Page 1 of 1</div>
-        <!-- Bottom right curve mimicking the image -->
-        <div style="position: absolute; bottom: 0; right: 0; width: 60px; height: 60px; border-top-left-radius: 100%; border: 12px solid #3b82f6; border-right: none; border-bottom: none; opacity: 0.25;"></div>
+      <!-- Clean Minimal Footer -->
+      <div style="margin-top: 36px; padding-top: 18px; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10.5px; color: #94a3b8;">
+        <div>
+          <div style="font-weight: 600; color: #64748b;">FinTrack Wealth Platform • Monthly Audit Statement</div>
+          <div style="margin-top: 2px;">Document Hash: BDT-${format(new Date(), 'yyyyMMdd')}-MTH-${month}-${year}</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="color: #64748b; font-weight: 600;">Verified Digital Ledger Record</div>
+          <div style="margin-top: 2px;">Page 1 of 1</div>
+        </div>
       </div>
 
     </div>
   `;
 
   const formattedPeriodName = monthNamesEng[month - 1].toLowerCase();
-  const safeFileName = `FinTrack_Report_${formattedPeriodName}_${year}.pdf`;
+  const safeFileName = `FinTrack_Statement_${formattedPeriodName}_${year}.pdf`;
   await generateHtmlPdf(htmlContent, { fileName: safeFileName, isThermalReceipt: false });
 }
+
+/**
+ * High-Fidelity, Minimal & Ultra-Professional Daily Income & Expense Combined Statement
+ * Displays full month (or selected date/range) day by day with:
+ * - Total Monthly Income
+ * - Total Monthly Expense
+ * - Monthly Net Balance
+ * - Current Total Cash & Account Balance (Remaining money in accounts)
+ * - Day-by-Day combined table with separate income & expense items, daily subtotals, and daily nets.
+ */
+export async function generateDailyIncomeExpenseReportPDF(params: {
+  userId: number | string;
+  userName: string;
+  userEmail?: string;
+  phoneNumber?: string;
+  companyName?: string;
+  periodLabel: string;
+  transactions: any[];
+  accounts: any[];
+  categories: any[];
+}) {
+  const {
+    userName,
+    userEmail,
+    phoneNumber,
+    companyName,
+    periodLabel,
+    transactions,
+    accounts,
+    categories
+  } = params;
+
+  // Calculate overall metrics for the period
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  transactions.forEach(tx => {
+    if (tx.type === 'income') {
+      totalIncome += tx.amount;
+    } else {
+      totalExpense += tx.amount;
+    }
+  });
+
+  const netPeriodBalance = totalIncome - totalExpense;
+  const currentTotalAccountBalance = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+
+  // Group transactions by date (yyyy-MM-dd)
+  const dateMap: { [dateKey: string]: { date: Date; incomeList: any[]; expenseList: any[]; dayIncome: number; dayExpense: number } } = {};
+
+  transactions.forEach(tx => {
+    const d = new Date(tx.date);
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (!dateMap[dateKey]) {
+      dateMap[dateKey] = {
+        date: d,
+        incomeList: [],
+        expenseList: [],
+        dayIncome: 0,
+        dayExpense: 0,
+      };
+    }
+    if (tx.type === 'income') {
+      dateMap[dateKey].incomeList.push(tx);
+      dateMap[dateKey].dayIncome += tx.amount;
+    } else {
+      dateMap[dateKey].expenseList.push(tx);
+      dateMap[dateKey].dayExpense += tx.amount;
+    }
+  });
+
+  // Sort dates descending
+  const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
+  const nowOutput = format(new Date(), 'dd MMM yyyy, hh:mm a');
+
+  const htmlContent = `
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+      * { box-sizing: border-box; }
+    </style>
+    <div style="padding: 36px 40px; background-color: #ffffff; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #0f172a; max-width: 794px; margin: 0 auto; box-sizing: border-box; line-height: 1.45;">
+      
+      <!-- Minimalist Executive Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 22px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 22px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; background-color: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 16px; letter-spacing: -0.05em;">
+            FT
+          </div>
+          <div>
+            <div style="font-size: 18px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a;">FinTrack</div>
+            <div style="font-size: 10.5px; color: #64748b; font-weight: 500;">Daily Financial Ledger & Cash Flow Audit</div>
+          </div>
+        </div>
+        
+        <div style="text-align: right;">
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">DAILY FINANCIAL STATEMENT</div>
+          <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">দৈনিক আয়-ব্যয় ও আর্থিক স্থিতি বিবরণী</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Generated: ${nowOutput}</div>
+        </div>
+      </div>
+
+      <!-- User & Period Information Box -->
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 22px;">
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">হিসাবধারী (Prepared For)</div>
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px;">${userName || 'User'}</div>
+          ${userEmail ? `<div style="font-size: 11px; color: #64748b; margin-top: 1px;">${userEmail}</div>` : ''}
+          ${phoneNumber ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">ফোন: ${phoneNumber}</div>` : ''}
+          ${companyName ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">প্রতিষ্ঠান: ${companyName}</div>` : ''}
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">বিবরণীর সময়কাল (Statement Period)</div>
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; font-family: 'Hind Siliguri', sans-serif;">${periodLabel}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 1px;">মোট লেনদেন: ${transactions.length} টি (${sortedDates.length} দিন)</div>
+        </div>
+      </div>
+
+      <!-- 4 Executive Highlight KPI Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px;">
+        
+        <!-- Total Income Box -->
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">সর্বমোট আয় (Income)</div>
+          <div style="font-size: 16px; font-weight: 800; color: #059669; margin-top: 4px; font-family: 'Inter', sans-serif;">+${formatCurrency(totalIncome)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">${transactions.filter(t => t.type === 'income').length} টি আয়ের উৎস</div>
+        </div>
+
+        <!-- Total Expense Box -->
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">সর্বমোট ব্যয় (Expense)</div>
+          <div style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: 'Inter', sans-serif;">-${formatCurrency(totalExpense)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">${transactions.filter(t => t.type === 'expense').length} টি ব্যয়ের খাত</div>
+        </div>
+
+        <!-- Net Monthly Balance Box -->
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">মাসের নিট সঞ্চয়/ব্যালেন্স</div>
+          <div style="font-size: 16px; font-weight: 800; color: ${netPeriodBalance >= 0 ? '#0f172a' : '#dc2626'}; margin-top: 4px; font-family: 'Inter', sans-serif;">${netPeriodBalance >= 0 ? '+' : ''}${formatCurrency(netPeriodBalance)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">(আয় - ব্যয় এর স্থিতি)</div>
+        </div>
+
+        <!-- Total Available Balance Across Accounts Box -->
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">বর্তমান মোট জমা/ক্যাশ</div>
+          <div style="font-size: 16px; font-weight: 800; color: #2563eb; margin-top: 4px; font-family: 'Inter', sans-serif;">${formatCurrency(currentTotalAccountBalance)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">সব একাউন্টে মোট জমা</div>
+        </div>
+
+      </div>
+
+      <!-- Section Title: Daily Breakdown -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1.5px solid #e2e8f0;">
+        <div style="font-size: 12px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #0f172a;"></span>
+          দৈনিক আয় ও ব্যয় বিস্তারিত তালিকা (Daily Breakdown)
+        </div>
+        <div style="font-size: 10.5px; color: #64748b; font-weight: 500;">একত্রে প্রতিদিনের হিসাব</div>
+      </div>
+
+      <!-- Day-by-Day Minimalist Table -->
+      <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 22px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+        <thead>
+          <tr style="background-color: #f8fafc; color: #475569; text-align: left; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+            <th style="padding: 9px 10px; width: 95px; border-right: 1px solid #e2e8f0;">তারিখ (Date)</th>
+            <th style="padding: 9px 10px; border-right: 1px solid #e2e8f0;">আয়ের খাত ও বিবরণ (Income)</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; border-right: 1px solid #e2e8f0; color: #059669;">দৈনিক আয়</th>
+            <th style="padding: 9px 10px; border-right: 1px solid #e2e8f0;">ব্যয়ের খাত ও বিবরণ (Expense)</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; border-right: 1px solid #e2e8f0; color: #dc2626;">দৈনিক ব্যয়</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; color: #0f172a;">দৈনিক নিট</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedDates.length > 0 ? sortedDates.map((dateKey, idx) => {
+            const dayData = dateMap[dateKey];
+            const rowBg = idx % 2 === 1 ? '#fafafa' : '#ffffff';
+            const dayNet = dayData.dayIncome - dayData.dayExpense;
+
+            const incomeDetails = dayData.incomeList.map(tx => {
+              const cat = categories.find(c => c.id === tx.categoryId);
+              return `<div style="margin-bottom: 2px;"><span style="color: #059669; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">${cat?.name || 'Income'}</span>: <span style="font-weight: 600;">${formatCurrency(tx.amount)}</span>${tx.note ? ` <span style="color:#64748b; font-size:9.5px;">(${tx.note})</span>` : ''}</div>`;
+            }).join('');
+
+            const expenseDetails = dayData.expenseList.map(tx => {
+              const cat = categories.find(c => c.id === tx.categoryId);
+              return `<div style="margin-bottom: 2px;"><span style="color: #dc2626; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">${cat?.name || 'Expense'}</span>: <span style="font-weight: 600;">${formatCurrency(tx.amount)}</span>${tx.note ? ` <span style="color:#64748b; font-size:9.5px;">(${tx.note})</span>` : ''}</div>`;
+            }).join('');
+
+            return `
+              <tr style="background-color: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; font-weight: 600; color: #0f172a; vertical-align: top;">
+                  <div>${format(dayData.date, 'dd MMM yyyy')}</div>
+                  <div style="font-size: 9px; color: #64748b; font-weight: 500;">${format(dayData.date, 'EEEE')}</div>
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; vertical-align: top;">
+                  ${incomeDetails || '<span style="color:#cbd5e1; font-style: italic;">-</span>'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #059669; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayData.dayIncome > 0 ? `+${formatCurrency(dayData.dayIncome)}` : '৳০.০০'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; vertical-align: top;">
+                  ${expenseDetails || '<span style="color:#cbd5e1; font-style: italic;">-</span>'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #dc2626; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayData.dayExpense > 0 ? `-${formatCurrency(dayData.dayExpense)}` : '৳০.০০'}
+                </td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 700; color: ${dayNet >= 0 ? '#0f172a' : '#dc2626'}; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayNet >= 0 ? '+' : ''}${formatCurrency(dayNet)}
+                </td>
+              </tr>
+            `;
+          }).join('') : `
+            <tr>
+              <td colspan="6" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">এই সময়ে কোন আয় বা ব্যয় লেনদেন পাওয়া যায়নি।</td>
+            </tr>
+          `}
+
+          <!-- Clean Grand Totals Row -->
+          <tr style="background-color: #f8fafc; font-weight: 800; font-size: 11px; color: #0f172a; border-top: 2px solid #0f172a;">
+            <td colspan="2" style="padding: 10px 10px; text-transform: uppercase; border-right: 1px solid #e2e8f0; letter-spacing: 0.04em;">
+              সর্বমোট সারাংশ (GRAND TOTALS)
+            </td>
+            <td style="padding: 10px 10px; text-align: right; color: #059669; border-right: 1px solid #e2e8f0; font-family: 'Inter', sans-serif;">
+              +${formatCurrency(totalIncome)}
+            </td>
+            <td style="padding: 10px 10px; border-right: 1px solid #e2e8f0;"></td>
+            <td style="padding: 10px 10px; text-align: right; color: #dc2626; border-right: 1px solid #e2e8f0; font-family: 'Inter', sans-serif;">
+              -${formatCurrency(totalExpense)}
+            </td>
+            <td style="padding: 10px 10px; text-align: right; color: ${netPeriodBalance >= 0 ? '#0f172a' : '#dc2626'}; font-family: 'Inter', sans-serif;">
+              ${netPeriodBalance >= 0 ? '+' : ''}${formatCurrency(netPeriodBalance)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Accounts Balance Breakdown Section -->
+      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; margin-bottom: 10px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.03em;">
+          <span>🏦 একাউন্ট ও নগদ জমার বর্তমান অবস্থা (Account Balances)</span>
+          <span style="font-size: 11px; color: #059669; font-weight: 700;">মোট অবশিষ্ট তহবিল: ${formatCurrency(currentTotalAccountBalance)}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 10.5px;">
+          ${accounts.map(acc => `
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${acc.name}</strong>
+                <div style="font-size: 9px; color: #64748b;">${acc.type || 'Wallet'}</div>
+              </div>
+              <div style="font-weight: 700; color: ${acc.currentBalance >= 0 ? '#0f172a' : '#dc2626'}; font-family: 'Inter', sans-serif;">
+                ${formatCurrency(acc.currentBalance)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Legal / Assurance Note -->
+      <div style="font-size: 10px; color: #64748b; line-height: 1.5; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 20px;">
+        📌 <strong>নোট:</strong> উপরোক্ত বিবরণীটি আপনার নির্বাচিত সময়সীমার প্রতিদিনের আয় ও ব্যয়কে একত্রে সুশৃঙ্খলভাবে উপস্থাপন করে। মোট জমা টাকা আপনার একাউন্টসমূহের বর্তমান স্থিতি নির্দেশ করে।
+      </div>
+
+      <!-- Bottom Signature & Verification Stamp -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1.5px solid #e2e8f0; font-size: 10px; color: #64748b;">
+        <div>
+          <div style="font-weight: 600; color: #0f172a;">FinTrack Personal Wealth Ledger</div>
+          <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">Document Hash: BDT-${format(new Date(), 'yyyyMMdd')}-DAILY-AUDIT</div>
+        </div>
+        <div style="text-align: center; border-top: 1px solid #cbd5e1; padding-top: 4px; min-width: 140px;">
+          <div style="font-weight: 700; color: #0f172a;">${userName || 'Authorized User'}</div>
+          <div style="font-size: 9px; color: #94a3b8;">ডিজিটাল স্বাক্ষর / অনুমোদিত</div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  const cleanPeriod = periodLabel.replace(/[^a-zA-Z0-9_\u0980-\u09FF]/g, '_').toLowerCase();
+  const safeFileName = `FinTrack_Daily_Statement_${cleanPeriod}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+  await generateHtmlPdf(htmlContent, { fileName: safeFileName, isThermalReceipt: false });
+}
+
+/**
+ * Minimal & Professional Monthly 30-Day Ledger PDF Report
+ * Displays only dates with transactions, income and expense notes, day subtotals and grand net.
+ */
+export async function generateMonthlyLedgerPDF(params: {
+  userId: number | string;
+  userName: string;
+  userEmail?: string;
+  phoneNumber?: string;
+  companyName?: string;
+  year: number;
+  month: number; // 1-12
+  transactions: any[];
+  accounts: any[];
+  categories: any[];
+}) {
+  const {
+    userName,
+    userEmail,
+    phoneNumber,
+    companyName,
+    year,
+    month,
+    transactions,
+    accounts,
+    categories
+  } = params;
+
+  const monthNamesEng = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const monthNamesBng = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
+  const periodTitle = `${monthNamesBng[month - 1]} ${year} (${monthNamesEng[month - 1]} ${year})`;
+
+  // Filter transactions strictly for this month & year
+  const monthlyTxs = transactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getFullYear() === year && (d.getMonth() + 1) === month;
+  });
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  monthlyTxs.forEach(tx => {
+    if (tx.type === 'income') {
+      totalIncome += tx.amount;
+    } else {
+      totalExpense += tx.amount;
+    }
+  });
+
+  const netBalance = totalIncome - totalExpense;
+  const currentTotalAccountBalance = accounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0);
+
+  // Group by date (yyyy-MM-dd) - only dates with transactions
+  const dateMap: { [key: string]: { date: Date; incomeList: any[]; expenseList: any[]; dayIncome: number; dayExpense: number } } = {};
+
+  monthlyTxs.forEach(tx => {
+    const d = new Date(tx.date);
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (!dateMap[dateKey]) {
+      dateMap[dateKey] = {
+        date: d,
+        incomeList: [],
+        expenseList: [],
+        dayIncome: 0,
+        dayExpense: 0
+      };
+    }
+    if (tx.type === 'income') {
+      dateMap[dateKey].incomeList.push(tx);
+      dateMap[dateKey].dayIncome += tx.amount;
+    } else {
+      dateMap[dateKey].expenseList.push(tx);
+      dateMap[dateKey].dayExpense += tx.amount;
+    }
+  });
+
+  // Sort dates ascending (01 to 30/31)
+  const sortedDates = Object.keys(dateMap).sort((a, b) => a.localeCompare(b));
+  const issuedDate = format(new Date(), 'dd MMM yyyy, hh:mm a');
+
+  const htmlContent = `
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+      * { box-sizing: border-box; }
+    </style>
+    <div style="padding: 36px 40px; background-color: #ffffff; font-family: 'Inter', 'Hind Siliguri', sans-serif; color: #0f172a; max-width: 794px; margin: 0 auto; box-sizing: border-box; line-height: 1.45;">
+      
+      <!-- Minimalist Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; background-color: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-weight: 900; font-size: 16px; letter-spacing: -0.05em;">
+            FT
+          </div>
+          <div>
+            <div style="font-size: 19px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a;">FinTrack</div>
+            <div style="font-size: 11px; color: #64748b; font-weight: 500;">Monthly 30-Day Financial Ledger & Statement</div>
+          </div>
+        </div>
+        
+        <div style="text-align: right;">
+          <div style="font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.04em;">MONTHLY 30-DAY LEDGER</div>
+          <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px;">মাসিক ৩০ দিনের আয়-ব্যয় খতিয়ান</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Issued: ${issuedDate}</div>
+        </div>
+      </div>
+
+      <!-- Account Holder & Month Metadata -->
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 20px;">
+        <div>
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">হিসাবধারী (Account Holder)</div>
+          <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px;">${userName || 'User'}</div>
+          ${userEmail ? `<div style="font-size: 11px; color: #64748b; margin-top: 1px;">${userEmail}</div>` : ''}
+          ${phoneNumber ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">ফোন: ${phoneNumber}</div>` : ''}
+          ${companyName ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">প্রতিষ্ঠান: ${companyName}</div>` : ''}
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">হিসাবের মাস (Statement Month)</div>
+          <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 2px; font-family: 'Hind Siliguri', sans-serif;">${periodTitle}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 1px;">মোট হিসাবের দিন: ${sortedDates.length} দিন (${monthlyTxs.length} টি লেনদেন)</div>
+        </div>
+      </div>
+
+      <!-- 4 KPI Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px;">
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">মাসের মোট আয়</div>
+          <div style="font-size: 16px; font-weight: 800; color: #059669; margin-top: 4px; font-family: 'Inter', sans-serif;">+${formatCurrency(totalIncome)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">${monthlyTxs.filter(t => t.type === 'income').length} টি আয়ের উৎস</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">মাসের মোট ব্যয়</div>
+          <div style="font-size: 16px; font-weight: 800; color: #dc2626; margin-top: 4px; font-family: 'Inter', sans-serif;">-${formatCurrency(totalExpense)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">${monthlyTxs.filter(t => t.type === 'expense').length} টি ব্যয়ের খাত</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">মাসের নিট স্থিতি</div>
+          <div style="font-size: 16px; font-weight: 800; color: ${netBalance >= 0 ? '#0f172a' : '#dc2626'}; margin-top: 4px; font-family: 'Inter', sans-serif;">${netBalance >= 0 ? '+' : ''}${formatCurrency(netBalance)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">(আয় - ব্যয়ের অবশিষ্ট)</div>
+        </div>
+
+        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">বর্তমান মোট তহবিল</div>
+          <div style="font-size: 16px; font-weight: 800; color: #2563eb; margin-top: 4px; font-family: 'Inter', sans-serif;">${formatCurrency(currentTotalAccountBalance)}</div>
+          <div style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">পকেট ও ব্যাংক জমা</div>
+        </div>
+      </div>
+
+      <!-- Clean Daily Breakdown Table (Only dates with transactions) -->
+      <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 22px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+        <thead>
+          <tr style="background-color: #f8fafc; color: #475569; text-align: left; font-weight: 700; border-bottom: 1.5px solid #e2e8f0;">
+            <th style="padding: 9px 10px; width: 90px; border-right: 1px solid #e2e8f0;">তারিখ (Date)</th>
+            <th style="padding: 9px 10px; border-right: 1px solid #e2e8f0;">আয়ের খাত ও বিবরণ (Income Note)</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; border-right: 1px solid #e2e8f0; color: #059669;">দৈনিক আয়</th>
+            <th style="padding: 9px 10px; border-right: 1px solid #e2e8f0;">ব্যয়ের খাত ও বিবরণ (Expense Note)</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; border-right: 1px solid #e2e8f0; color: #dc2626;">দৈনিক ব্যয়</th>
+            <th style="padding: 9px 10px; width: 85px; text-align: right; color: #0f172a;">দৈনিক নিট</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedDates.length > 0 ? sortedDates.map((dateKey, idx) => {
+            const dayData = dateMap[dateKey];
+            const rowBg = idx % 2 === 1 ? '#fafafa' : '#ffffff';
+            const dayNet = dayData.dayIncome - dayData.dayExpense;
+
+            const incomeDetails = dayData.incomeList.map(tx => {
+              const cat = categories.find(c => c.id === tx.categoryId);
+              return `<div style="margin-bottom: 2px;"><span style="color: #059669; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">${cat?.name || 'Income'}</span>: <span style="font-weight: 600;">${formatCurrency(tx.amount)}</span>${tx.note ? ` <span style="color:#64748b; font-size:9.5px;">(${tx.note})</span>` : ''}</div>`;
+            }).join('');
+
+            const expenseDetails = dayData.expenseList.map(tx => {
+              const cat = categories.find(c => c.id === tx.categoryId);
+              return `<div style="margin-bottom: 2px;"><span style="color: #dc2626; font-weight: 600; font-family: 'Hind Siliguri', sans-serif;">${cat?.name || 'Expense'}</span>: <span style="font-weight: 600;">${formatCurrency(tx.amount)}</span>${tx.note ? ` <span style="color:#64748b; font-size:9.5px;">(${tx.note})</span>` : ''}</div>`;
+            }).join('');
+
+            return `
+              <tr style="background-color: ${rowBg}; border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; font-weight: 600; color: #0f172a; vertical-align: top;">
+                  <div style="font-family: 'Inter', sans-serif; font-size: 11px;">${format(dayData.date, 'dd MMM yyyy')}</div>
+                  <div style="font-size: 9px; color: #64748b; font-weight: 500;">${format(dayData.date, 'EEEE')}</div>
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; vertical-align: top;">
+                  ${incomeDetails || '<span style="color:#cbd5e1; font-style: italic;">-</span>'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #059669; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayData.dayIncome > 0 ? `+${formatCurrency(dayData.dayIncome)}` : '৳০.০০'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; vertical-align: top;">
+                  ${expenseDetails || '<span style="color:#cbd5e1; font-style: italic;">-</span>'}
+                </td>
+                <td style="padding: 8px 10px; border-right: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #dc2626; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayData.dayExpense > 0 ? `-${formatCurrency(dayData.dayExpense)}` : '৳০.০০'}
+                </td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 700; color: ${dayNet >= 0 ? '#0f172a' : '#dc2626'}; vertical-align: top; font-family: 'Inter', sans-serif;">
+                  ${dayNet >= 0 ? '+' : ''}${formatCurrency(dayNet)}
+                </td>
+              </tr>
+            `;
+          }).join('') : `
+            <tr>
+              <td colspan="6" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">এই মাসে কোন আয় বা ব্যয় লেনদেন পাওয়া যায়নি।</td>
+            </tr>
+          `}
+
+          <!-- Clean Grand Totals Row -->
+          <tr style="background-color: #f8fafc; font-weight: 800; font-size: 11px; color: #0f172a; border-top: 2px solid #0f172a;">
+            <td colspan="2" style="padding: 10px 10px; text-transform: uppercase; border-right: 1px solid #e2e8f0; letter-spacing: 0.04em;">
+              সর্বমোট সারাংশ (GRAND TOTALS)
+            </td>
+            <td style="padding: 10px 10px; text-align: right; color: #059669; border-right: 1px solid #e2e8f0; font-family: 'Inter', sans-serif;">
+              +${formatCurrency(totalIncome)}
+            </td>
+            <td style="padding: 10px 10px; border-right: 1px solid #e2e8f0;"></td>
+            <td style="padding: 10px 10px; text-align: right; color: #dc2626; border-right: 1px solid #e2e8f0; font-family: 'Inter', sans-serif;">
+              -${formatCurrency(totalExpense)}
+            </td>
+            <td style="padding: 10px 10px; text-align: right; color: ${netBalance >= 0 ? '#0f172a' : '#dc2626'}; font-family: 'Inter', sans-serif;">
+              ${netBalance >= 0 ? '+' : ''}${formatCurrency(netBalance)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Accounts Balance Breakdown Section -->
+      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+        <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; margin-bottom: 10px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.03em;">
+          <span>🏦 একাউন্ট ও পকেট ক্যাশের বর্তমান অবস্থা (Account Balances)</span>
+          <span style="font-size: 11px; color: #059669; font-weight: 700;">মোট অবশিষ্ট তহবিল: ${formatCurrency(currentTotalAccountBalance)}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 10.5px;">
+          ${accounts.map(acc => `
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="color: #0f172a; font-family: 'Hind Siliguri', sans-serif;">${acc.name}</strong>
+                <div style="font-size: 9px; color: #64748b;">${acc.type || 'Wallet'}</div>
+              </div>
+              <div style="font-weight: 700; color: ${acc.currentBalance >= 0 ? '#0f172a' : '#dc2626'}; font-family: 'Inter', sans-serif;">
+                ${formatCurrency(acc.currentBalance)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Legal / Assurance Note -->
+      <div style="font-size: 10px; color: #64748b; line-height: 1.5; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 20px;">
+        📌 <strong>নোট:</strong> শুধুমাত্র যে তারিখে হিসাব নথিভুক্ত রয়েছে সেই তারিখগুলো বিস্তারিত আয়-ব্যয় ও নোট সহ প্রতিবেদনে অন্তর্ভুক্ত করা হয়েছে।
+      </div>
+
+      <!-- Bottom Signature & Verification Stamp -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1.5px solid #e2e8f0; font-size: 10px; color: #64748b;">
+        <div>
+          <div style="font-weight: 600; color: #0f172a;">FinTrack Monthly Statement Ledger</div>
+          <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">Document Hash: BDT-${year}${String(month).padStart(2, '0')}-LEDGER-30D</div>
+        </div>
+        <div style="text-align: center; border-top: 1px solid #cbd5e1; padding-top: 4px; min-width: 140px;">
+          <div style="font-weight: 700; color: #0f172a;">${userName || 'Authorized User'}</div>
+          <div style="font-size: 9px; color: #94a3b8;">ডিজিটাল স্বাক্ষর / অনুমোদিত</div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  const safeFileName = `FinTrack_30Day_Ledger_${monthNamesEng[month - 1]}_${year}.pdf`;
+  await generateHtmlPdf(htmlContent, { fileName: safeFileName, isThermalReceipt: false });
+}
+

@@ -3,11 +3,23 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { formatCurrency, cn } from '../lib/utils';
 import { motion } from 'motion/react';
-import { Bell, ArrowDownLeft, ArrowUpRight, Users, Eye, EyeOff, AlertTriangle, ShoppingBag } from 'lucide-react';
+import { Bell, ArrowDownLeft, ArrowUpRight, Users, Eye, EyeOff, AlertTriangle, ShoppingBag, Calendar } from 'lucide-react';
 import { format, startOfMonth } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 
-export function Dashboard({ onAddTransaction, onNavigateToProfile, onNavigateToDebts, onNavigateToBazar }: { onAddTransaction: () => void, onNavigateToProfile?: () => void, onNavigateToDebts?: () => void, onNavigateToBazar?: () => void }) {
+export function Dashboard({
+  onAddTransaction,
+  onNavigateToProfile,
+  onNavigateToDebts,
+  onNavigateToBazar,
+  onNavigateToLedger
+}: {
+  onAddTransaction: () => void;
+  onNavigateToProfile?: () => void;
+  onNavigateToDebts?: () => void;
+  onNavigateToBazar?: () => void;
+  onNavigateToLedger?: () => void;
+}) {
   const { currentUser } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
   
@@ -156,35 +168,45 @@ export function Dashboard({ onAddTransaction, onNavigateToProfile, onNavigateToD
       )}
 
       {/* Quick Actions */}
-      <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         <button 
           onClick={onAddTransaction}
           className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800"
         >
-          <div className="w-12 h-12 rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-            <ArrowUpRight size={24} />
+          <div className="w-11 h-11 rounded-2xl bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center">
+            <ArrowUpRight size={22} />
           </div>
-          <span className="font-medium text-slate-900 dark:text-white text-sm">Add Transaction</span>
+          <span className="font-bold text-slate-900 dark:text-white text-xs md:text-sm text-center">লেনদেন যুক্ত করুন</span>
+        </button>
+
+        <button 
+          onClick={onNavigateToLedger}
+          className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800"
+        >
+          <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <Calendar size={22} />
+          </div>
+          <span className="font-bold text-slate-900 dark:text-white text-xs md:text-sm text-center">মাসিক ৩০ দিনের শিট</span>
         </button>
         
         <button 
           onClick={onNavigateToDebts}
           className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800"
         >
-          <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center">
-            <Users size={24} />
+          <div className="w-11 h-11 rounded-2xl bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+            <Users size={22} />
           </div>
-          <span className="font-medium text-slate-900 dark:text-white text-sm">Debit/Credit (দেনা পাওনা)</span>
+          <span className="font-bold text-slate-900 dark:text-white text-xs md:text-sm text-center">দেনা পাওনা (Debts)</span>
         </button>
 
         <button 
           onClick={onNavigateToBazar}
-          className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800 col-span-2 md:col-span-1"
+          className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm flex flex-col items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800"
         >
-          <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-            <ShoppingBag size={24} />
+          <div className="w-11 h-11 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <ShoppingBag size={22} />
           </div>
-          <span className="font-medium text-slate-900 dark:text-white text-sm">Bazar List (বাজার তালিকা)</span>
+          <span className="font-bold text-slate-900 dark:text-white text-xs md:text-sm text-center">বাজার তালিকা</span>
         </button>
       </section>
 
